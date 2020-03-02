@@ -15,7 +15,7 @@ def extract_all_uris_inner(db_file):
         if not l_str.startswith('<'):
             continue
         ids = l_str.strip().rstrip('.').split()
-        uris = uris.update()union(ids)
+        uris = uris.union(ids)
 
     return uris
 
