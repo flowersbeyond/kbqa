@@ -63,15 +63,17 @@ class QALD5Checker(DBPediaResultChecker):
         return old_results
 
 
-def main():
+def main(run_sparql):
     data_dir = './data/QALD/5/data/'
     train = data_dir + 'qald-5_train.xml'
     train_db1610_ans = data_dir + 'qald-5_train_db1610ans.json'
     test = data_dir + 'qald-5_test.xml'
     test_db1610_ans = data_dir + 'qald-5_test_db1610ans.json'
     checker = QALD5Checker()
-    #checker.run_gold_query(train, train_db1610_ans)
-    #checker.run_gold_query(test, test_db1610_ans)
+    if run_sparql:
+        checker.run_gold_query(train, train_db1610_ans)
+        checker.run_gold_query(test, test_db1610_ans)
+
 
     train_result = checker.compare_result(train, train_db1610_ans)
     train_detail = data_dir + 'qald-5_train_detail.txt'
@@ -84,4 +86,4 @@ def main():
     checker.print_compare_result(test_detail, test_summary, test_result)
 
 if __name__ == '__main__':
-    main()
+    main(True)

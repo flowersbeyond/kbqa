@@ -69,7 +69,7 @@ class QALD6PlusChecker(DBPediaResultChecker):
                     'values': values}
         return old_results
 
-def main():
+def main(run_sparql):
     for i in [6,7,8,9]:
         data_dir = './data/QALD/%d/data/' % i
         train = data_dir + '/qald-%d-train-multilingual.json' % i
@@ -77,8 +77,9 @@ def main():
         test = data_dir + '/qald-%d-test-multilingual.json' %i
         test_db1610_ans = data_dir + '/qald-%d-test-multilingual_db1610ans.json' % i
         checker = QALD6PlusChecker()
-        #checker.run_gold_query(train, train_db1610_ans)
-        #checker.run_gold_query(test, test_db1610_ans)
+        if run_sparql:
+            checker.run_gold_query(train, train_db1610_ans)
+            checker.run_gold_query(test, test_db1610_ans)
 
         train_result = checker.compare_result(train, train_db1610_ans)
         train_detail = data_dir + '/qald-%d-train-multilingual_detail.txt' % i
@@ -92,4 +93,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(True)

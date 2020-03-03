@@ -63,7 +63,7 @@ class QALD4Checker(DBPediaResultChecker):
 
 
 
-def main():
+def main(run_sparql):
 
     qald_4_data_dir = './data/QALD/4/data/'
     qald_4_train = qald_4_data_dir + 'qald-4_multilingual_train_withanswers.xml'
@@ -72,8 +72,9 @@ def main():
     qald_4_test_db1610_ans = qald_4_data_dir + 'qald-4_multilingual_test_db1610ans.json'
 
     qald_4_checker = QALD4Checker()
-    #qald_4_checker.run_gold_query(qald_4_train, qald_4_train_db1610_ans)
-    #qald_4_checker.run_gold_query(qald_4_test, qald_4_test_db1610_ans)
+    if run_sparql:
+        qald_4_checker.run_gold_query(qald_4_train, qald_4_train_db1610_ans)
+        qald_4_checker.run_gold_query(qald_4_test, qald_4_test_db1610_ans)
 
     train_result = qald_4_checker.compare_result(qald_4_train, qald_4_train_db1610_ans)
     train_detail = qald_4_data_dir + 'qald-4_multilingual_train_detail.txt'
@@ -87,4 +88,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(True)

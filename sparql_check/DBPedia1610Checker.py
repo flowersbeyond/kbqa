@@ -20,6 +20,8 @@ class DBPediaResultChecker:
         sparql = SPARQLWrapper("http://dbpedia.org/sparql")
         sparql.setQuery(query)
         sparql.setReturnFormat('json')
+
+
         try:
             results = sparql.query().convert()
         except:
@@ -27,7 +29,12 @@ class DBPediaResultChecker:
             try:
                 results = sparql.query().convert()
             except Exception as e:
-                results = {'error':str(e)}
+                if str(e).find('urlopen error [WinError 10051]'):
+                    time.sleep(10)
+                    try:
+                        results = sparql.query().convert()
+                    except Exception as e:
+                        results = {'error':str(e)}
 
         return results
 
@@ -65,11 +72,11 @@ class DBPediaResultChecker:
         old_result = self.extract_old_result(data_file_name)
         new_result = self.extract_new_result(ans_output_file)
         #should follow format: {'id': id, 'diff_type': diff_type}
-        compare_result = []
+        compare_result = {}
         for id in old_result:
             left = old_result[id]
             if 'oos' in left:
-                compare_result.append({'id':id, 'diff_type':self.GOLDEN_QUERY_OOS})
+                compare_result[id] = {'diff_type':self.GOLDEN_QUERY_OOS}
                 continue
             '''
             if 'empty' in left:
@@ -81,7 +88,7 @@ class DBPediaResultChecker:
             right = new_result[id]
 
             if 'error' in right:
-                compare_result.append({'id':id, 'diff_type':self.QUERY_EXE_ERROR})
+                compare_result[id]={'diff_type':self.QUERY_EXE_ERROR, 'error_msg':right['error']}
                 continue
 
             '''TODO: type & var_name have too big gaps between the older datafiles and the new response format
@@ -92,19 +99,24 @@ class DBPediaResultChecker:
             '''
             left_values = set(left['values'])
             right_values = set(right['values'])
-            if left_values.issubset(right_values):
-                if len(left_values) < len(right_values):
-                    compare_result.append({'id':id, 'diff_type':self.NEW_ANS_INCREASED})
-                else:
-                    compare_result.append({'id': id, 'diff_type': self.RESULT_SAME})
-
+            left_only = left_values.difference(right_values)
+            right_only = right_values.difference(left_values)
+            if len(left_only) == 0 and len(right_only) == 0:
+                #left & right are the same
+                compare_result[id]={'diff_type': self.RESULT_SAME}
+            elif len(left_only) == 0 and len(right_only) != 0:
+                compare_result[id]={'diff_type': self.NEW_ANS_INCREASED}
             elif len(right_values) == 0:
-                compare_result.append({'id': id, 'diff_type': self.NEW_ANS_EMPTY})
-            elif right_values.issubset(left_values):
-                compare_result.append({'id': id, 'diff_type': self.NEW_ANS_DECREASED})
-
+                compare_result[id]={'diff_type': self.NEW_ANS_EMPTY}
+            elif len(left_only) != 0 and len(right_only) == 0:
+                compare_result[id]={'diff_type': self.NEW_ANS_DECREASED}
             else:
-                compare_result.append({'id': id, 'diff_type': self.OTHERS})
+                compare_result[id]={'diff_type': self.OTHERS}
+
+            if len(left_only) !=0:
+                compare_result[id]['left_only'] = list(left_only)
+            if len(right_only) != 0:
+                compare_result[id]['right_only'] = list(right_only)
 
         return compare_result
 
@@ -124,7 +136,7 @@ class DBPediaResultChecker:
 
                 result = item['result']
                 if 'error' in result:
-                    new_results[id] = {'error':True}
+                    new_results[id] = {'error':result['error']}
                     continue
                 #TODO:
                 head = result['head']
@@ -152,8 +164,10 @@ class DBPediaResultChecker:
 
     def print_compare_result(self, detail_output_file, summary_output_file, compare_results):
         with open(detail_output_file, encoding='utf-8', mode='w') as fout:
-            for result in compare_results:
-                fout.write('%s\t%s\n' % (result['id'], result['diff_type']))
+            for id in compare_results:
+                compare_results[id]['id'] = id
+                if compare_results[id]['diff_type'] != self.RESULT_SAME:
+                    fout.write(json.dumps(compare_results[id]) + '\n')
 
         summary = {self.RESULT_SAME:0,
                    self.GOLDEN_QUERY_OOS: 0,
@@ -163,8 +177,8 @@ class DBPediaResultChecker:
                    self.NEW_ANS_DECREASED: 0,
                    self.OTHERS: 0}
 
-        for result in compare_results:
-            summary[result['diff_type']] += 1
+        for id in compare_results:
+            summary[compare_results[id]['diff_type']] += 1
 
         with open(summary_output_file, encoding='utf-8', mode='w') as fout:
             print(summary_output_file)
