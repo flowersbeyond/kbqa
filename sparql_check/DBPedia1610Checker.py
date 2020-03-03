@@ -1,15 +1,18 @@
 from SPARQLWrapper import SPARQLWrapper
 import json
+import time
+from tqdm import tqdm
+import urllib.parse
 
 class DBPediaResultChecker:
 
     RESULT_SAME = 'RESULT_SAME'
     GOLDEN_QUERY_OOS = 'GOLDEN_QUERY_OOS'
-    GOLDEN_QUERY_MISSING = 'GOLDEN_QUERY_MISSING'
     QUERY_EXE_ERROR = 'QUERY_EXE_ERROR'
     QUERY_PARSE_ERROR = 'QUERY_PARSE_ERROR'
     NEW_ANS_EMPTY = 'NEW_ANS_EMPTY'
     NEW_ANS_INCREASED = 'NEW_ANS_INCREASED'
+    NEW_ANS_DECREASED = 'NEW_ANS_DECREASED'
     OTHERS = 'OTHERS'
 
 
@@ -19,8 +22,12 @@ class DBPediaResultChecker:
         sparql.setReturnFormat('json')
         try:
             results = sparql.query().convert()
-        except Exception as e:
-            results = {'error':str(e)}
+        except:
+            time.sleep(5)
+            try:
+                results = sparql.query().convert()
+            except Exception as e:
+                results = {'error':str(e)}
 
         return results
 
@@ -29,10 +36,12 @@ class DBPediaResultChecker:
 
 
     def run_gold_query(self, data_file_name, ans_output_file):
+        print("Processing %s" % data_file_name)
         questions = self.extract_id_query(data_file_name)
 
         with open(ans_output_file,mode='w', encoding='utf-8') as fout:
-            for q in questions:
+            pbar = tqdm(questions)
+            for q in pbar:
                 query = q['query']
                 if self.isValidQuery(query):
                     result = self.query_dbpedia(query)
@@ -42,6 +51,7 @@ class DBPediaResultChecker:
                     result_dict['result'] = result
 
                     fout.write(json.dumps(result_dict).strip() + '\n')
+
 
 
     def extract_id_query(self, data_file_name):
@@ -58,26 +68,28 @@ class DBPediaResultChecker:
         compare_result = []
         for id in old_result:
             left = old_result[id]
-            if left['oos']:
+            if 'oos' in left:
                 compare_result.append({'id':id, 'diff_type':self.GOLDEN_QUERY_OOS})
                 continue
-            if left['empty']:
+            '''
+            if 'empty' in left:
                 compare_result.append({'id':id, 'diff_type':self.GOLDEN_QUERY_MISSING})
                 continue
+            '''
 
             assert id in new_result
             right = new_result[id]
 
-            if right['error']:
+            if 'error' in right:
                 compare_result.append({'id':id, 'diff_type':self.QUERY_EXE_ERROR})
                 continue
 
-            if right['empty']:
-                compare_result.append({'id':id, 'diff_type':self.NEW_ANS_EMPTY})
-
-            if left['vars'] != right['vars'] or left['type'] != right['type']:
+            '''TODO: type & var_name have too big gaps between the older datafiles and the new response format
+            we temporarily don't compare them
+            
+            if left['var'] != right['var'] or left['type'] != right['type']:
                 compare_result.append({'id':id, 'diff_type':self.QUERY_PARSE_ERROR})
-
+            '''
             left_values = set(left['values'])
             right_values = set(right['values'])
             if left_values.issubset(right_values):
@@ -85,6 +97,12 @@ class DBPediaResultChecker:
                     compare_result.append({'id':id, 'diff_type':self.NEW_ANS_INCREASED})
                 else:
                     compare_result.append({'id': id, 'diff_type': self.RESULT_SAME})
+
+            elif len(right_values) == 0:
+                compare_result.append({'id': id, 'diff_type': self.NEW_ANS_EMPTY})
+            elif right_values.issubset(left_values):
+                compare_result.append({'id': id, 'diff_type': self.NEW_ANS_DECREASED})
+
             else:
                 compare_result.append({'id': id, 'diff_type': self.OTHERS})
 
@@ -96,28 +114,39 @@ class DBPediaResultChecker:
 
 
     def extract_new_result(self, ans_output_file):
-        '''TODO
+
         new_results = {}
         with open(ans_output_file, encoding='utf-8') as fin:
             for l in fin:
                 item = json.loads(l)
                 id = item['id']
-                result = item['result']
+                values = []
 
+                result = item['result']
                 if 'error' in result:
                     new_results[id] = {'error':True}
                     continue
                 #TODO:
-                var_name = result['head']['vars'][0]
-                values = []
-                bindings = result['results']['bindings']
-                for binding in bindings:
-                    value = binding[var_name]['type']
+                head = result['head']
+                if 'vars' in head:
+                    vars = head['vars']
+                    if len(vars) > 1:
+                        print(str(id) + 'has more than 1 variables')
+                    var_name = vars[0]
+                    var_type = ''
 
+                    bindings = result['results']['bindings']
+                    for binding in bindings:
+                        if len(binding) > 0:
+                            var_type = binding[var_name]['type']
+                            value = binding[var_name]['value']
+                            values.append(urllib.parse.unquote(str(value), encoding='utf-8').lower())
+                    new_results[id]= {'name':var_name, 'type':var_type, 'values':values}
+                else:
+                    values.append(str(result['boolean']).lower())
+                    new_results[id] = {'values': values}
 
-
-        '''
-        return []
+        return new_results
 
 
 
@@ -126,10 +155,20 @@ class DBPediaResultChecker:
             for result in compare_results:
                 fout.write('%s\t%s\n' % (result['id'], result['diff_type']))
 
-        summary = {self.RESULT_SAME:0, self.GOLDEN_QUERY_MISSING:0, self.QUERY_EXE_ERROR:0, self.NEW_ANS_EMPTY:0, self.NEW_ANS_INCREASED:0, self.OTHERS:0}
+        summary = {self.RESULT_SAME:0,
+                   self.GOLDEN_QUERY_OOS: 0,
+                   self.QUERY_EXE_ERROR: 0,
+                   self.NEW_ANS_EMPTY: 0,
+                   self.NEW_ANS_INCREASED: 0,
+                   self.NEW_ANS_DECREASED: 0,
+                   self.OTHERS: 0}
+
         for result in compare_results:
             summary[result['diff_type']] += 1
+
         with open(summary_output_file, encoding='utf-8', mode='w') as fout:
+            print(summary_output_file)
             for diff_type in summary:
                 fout.write('%s\t%d\n' % (diff_type, summary[diff_type]))
+                print('%s\t%d' % (diff_type, summary[diff_type]))
 
