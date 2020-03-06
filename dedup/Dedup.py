@@ -372,8 +372,8 @@ if __name__ == '__main__':
         qald6plus_test.append(data_dir + '/qald-%d-test-multilingual.json' % i)
         qald6plus_test_exe_result.append(data_dir + '/qald-%d-test-multilingual_db1610ans.json' % i)
 
-    final_train = './data/QALD/train-multilingual-4-9.json'
-    final_test = './data/QALD/test-multilingual-4-9.json'
+    final_train = './data/QALD/train-multilingual-4-9.jsonl'
+    final_test = './data/QALD/test-multilingual-4-9.jsonl'
 
 
     qald = parse_and_filter_qald4(qald4_train, qald4_train_exe_result)
