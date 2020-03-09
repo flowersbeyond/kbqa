@@ -328,6 +328,30 @@ def load_exe_res(exe_res_file):
     #print("%s: Valid: %d" % (exe_res_file, len(results)))
     return results
 
+
+def dedup_test_from_train(train_questions, test_questions):
+    final_test_questions = []
+    for q in test_questions:
+        dup = False
+        for q1 in train_questions:
+            test_q_details = q['question']
+            train_q_details = q1['question']
+
+            for lang in test_q_details:
+                if lang in train_q_details:
+                    test_q_text = test_q_details[lang]['string']
+                    train_q_text = train_q_details[lang]['string']
+                    if test_q_text != '' and train_q_text != '' and test_q_text.strip().lower() == train_q_text.strip().lower():
+                        dup = True
+                        break
+
+        if not dup:
+            final_test_questions.append(q)
+    print("final test questions:\t%d" % len(final_test_questions))
+    return final_test_questions
+
+
+
 def format_q_details(questions):
     for i in range(0, len(questions)):
         q = questions[i]
@@ -385,9 +409,7 @@ if __name__ == '__main__':
         qaldi = parse_and_filter_qald6plus(train, exe_result, i + 6)
         qald.extend(qaldi)
 
-    total_questions = dedup(qald)
-    format_q_details(total_questions)
-    save_to_file(total_questions, final_train)
+    train_total_questions = dedup(qald)
 
     qald = parse_and_filter_qald4(qald4_test, qald4_test_exe_result)
     qald.extend(parse_and_filter_qald5(qald5_test, qald5_test_exe_result))
@@ -398,6 +420,13 @@ if __name__ == '__main__':
         qaldi = parse_and_filter_qald6plus(test, exe_result, i + 6)
         qald.extend(qaldi)
 
-    total_questions = dedup(qald)
-    format_q_details(total_questions)
-    save_to_file(total_questions, final_test)
+    test_total_questions = dedup(qald)
+
+    test_total_questions = dedup_test_from_train(train_total_questions, test_total_questions)
+
+
+    format_q_details(train_total_questions)
+    save_to_file(train_total_questions, final_train)
+
+    format_q_details(test_total_questions)
+    save_to_file(test_total_questions, final_test)
