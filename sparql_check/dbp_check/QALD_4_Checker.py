@@ -1,7 +1,7 @@
 from collections import OrderedDict
 import urllib.parse
 import xmltodict
-from sparql_check.DBPedia1610Checker import DBPediaResultChecker
+from sparql_check.dbp_check.DBPedia1610Checker import DBPediaResultChecker
 
 class QALD4Checker(DBPediaResultChecker):
 
