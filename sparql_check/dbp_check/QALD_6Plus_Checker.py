@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 from sparql_check.dbp_check.DBPedia1610Checker import DBPediaResultChecker
 import json
 import urllib.parse

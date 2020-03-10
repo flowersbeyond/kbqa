@@ -78,11 +78,6 @@ class DBPediaResultChecker:
             if 'oos' in left:
                 compare_result[id] = {'diff_type':self.GOLDEN_QUERY_OOS}
                 continue
-            '''
-            if 'empty' in left:
-                compare_result.append({'id':id, 'diff_type':self.GOLDEN_QUERY_MISSING})
-                continue
-            '''
 
             assert id in new_result
             right = new_result[id]
