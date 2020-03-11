@@ -119,7 +119,6 @@ def extract_lcquad_1_queries(train, train_ans_detail,test,test_ans_detail):
 
 def main():
     qald_multilingual_train = './data/QALD/train-multilingual-4-9.jsonl'
-
     queries = extract_qald_multilingual_queries(qald_multilingual_train)
     stat = get_stat(queries)
     qald_multilingual_train_stat = './data/QALD/train-multilingual-4-9-sparql_stat.txt'

@@ -9,26 +9,6 @@ class QALD_7LS_Checker(DBPediaResultChecker):
 
     NON_EMPTY = 'NON_EMPTY'
 
-    def extract_id_query(self, data_file_name):
-
-        questions = []
-
-        with open(data_file_name, encoding='utf-8') as fd:
-            data = json.load(fd)
-            for q in data:
-                question = {}
-                question['id'] = int(q['id'])
-                question['query'] = q['sparql']
-
-                questions.append(question)
-
-        return questions
-
-    def isValidQuery(self, query):
-        return not query == 'OUT OF SCOPE'
-
-
-
 
     def load_test(self, data_file):
         data = []
