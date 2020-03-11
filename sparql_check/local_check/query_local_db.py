@@ -29,15 +29,18 @@ def load_all_core_data(data_dir, core_names):
         print("-- %s " % c)
 
 
-    print('begin sample query:')
-    qres = g.query(
-        """sparql" : "PREFIX res: <http://dbpedia.org/resource/> PREFIX dbp: <http://dbpedia.org/property/> 
-        SELECT DISTINCT ?uri WHERE { res:Salt_Lake_City <http://dbpedia.org/ontology/timeZone> ?uri }"""
-    )
+    try:
+        print('begin sample query:')
+        qres = g.query(
+            """PREFIX res: <http://dbpedia.org/resource/> PREFIX dbp: <http://dbpedia.org/property/> 
+            SELECT DISTINCT ?uri WHERE { res:Salt_Lake_City <http://dbpedia.org/ontology/timeZone> ?uri }"""
+        )
 
-    print('end sample query')
-    for row in qres:
-        print(row)
+        print('end sample query')
+        for row in qres:
+            print(row)
+    except Exception as e:
+        print (str(e))
 
     return g
 
@@ -63,7 +66,14 @@ if __name__ == '__main__':
         if query.startswith('Q:'):
             query = query[2:]
             print('begin query...')
-            qres = g.query(query)
-            for row in qres:
-                print(row)
+            try:
+                qres = g.query(query)
+                for row in qres:
+                    print(row)
+            except Exception as e:
+                print(str(e))
+
             print('end query...')
+        elif query == 'exit':
+            break
+
