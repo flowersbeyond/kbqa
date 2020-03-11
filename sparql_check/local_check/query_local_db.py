@@ -9,7 +9,9 @@ def load_all_core_data(data_dir, core_names):
 
     for name in core_names:
         gi = Graph(store=store, identifier=name)
+        print (name + '\t loading...')
         gi.parse('%s/%s.ttl'%(data_dir, name), format='turtle')
+        print (name + '\tfinished loading.')
 
     # enumerate contexts
     for c in g.contexts():
@@ -17,15 +19,12 @@ def load_all_core_data(data_dir, core_names):
 
 
     qres = g.query(
-        """SELECT DISTINCT ?aname ?bname
-           WHERE {
-              ?a foaf:knows ?b .
-              ?a foaf:name ?aname .
-              ?b foaf:name ?bname .
-           }""")
+        """sparql" : "PREFIX res: <http://dbpedia.org/resource/> PREFIX dbp: <http://dbpedia.org/property/> 
+        SELECT DISTINCT ?uri WHERE { res:Salt_Lake_City <http://dbpedia.org/ontology/timeZone> ?uri }"""
+    )
 
     for row in qres:
-        print("%s knows %s" % row)
+        print(row)
 
 
 
