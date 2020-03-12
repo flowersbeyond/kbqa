@@ -48,8 +48,8 @@ def load_all_core_data(data_dir, core_names):
 if __name__ == '__main__':
     data_dir = './data/DBPedia/core8'
     core_names = [
-        'labels_en',
-        #'category_labels_en',
+        #'labels_en',
+        'category_labels_en',
 
         #'article_categories_en',
         #'instance_types_en',
