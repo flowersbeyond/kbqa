@@ -50,12 +50,14 @@ if __name__ == '__main__':
     core_names = [
         'labels_en',
         'category_labels_en',
+        '''
         'article_categories_en',
         'instance_types_en',
         'infobox_properties_en',
         'mappingbased_literals_en',
         'mappingbased_objects_en',
         'persondata_en'
+        '''
     ]
 
     g = load_all_core_data(data_dir, core_names)
