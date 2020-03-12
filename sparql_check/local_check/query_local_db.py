@@ -12,12 +12,12 @@ def load_core_data(graph, file, name):
 def load_all_core_data(data_dir, core_names):
     store = IOMemory()
 
-    g = ConjunctiveGraph(store=store)
+    g = Graph()#store=store)
     p_list = []
     for name in core_names:
-        gi = Graph(store=store, identifier=name)
+        #gi = Graph(store=store, identifier=name)
 
-        p = mp.Process(target=load_core_data, args=(gi, '%s/%s.ttl'%(data_dir, name), name))
+        p = mp.Process(target=load_core_data, args=(g, '%s/%s.ttl'%(data_dir, name), name))
         p_list.append(p)
         p.start()
 
@@ -25,8 +25,8 @@ def load_all_core_data(data_dir, core_names):
         p.join()
 
     # enumerate contexts
-    for c in g.contexts():
-        print("-- %s " % c)
+    #for c in g.contexts():
+    #    print("-- %s " % c)
 
 
     try:
