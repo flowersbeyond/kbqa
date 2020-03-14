@@ -1,6 +1,7 @@
 import json
 import re
 from tqdm import tqdm
+from multiprocessing import Process
 
 public_prefix = {
                     'owl': '<http://www.w3.org/2002/07/owl#>',
@@ -254,15 +255,22 @@ def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
             if l.startswith('#'):
                 continue
 
-            db_triple = l.strip().split()
-            for i in range(0, 1, 2):
+            subj = l[0:l.find('>') + 1]
+            l = l[l.find('>') + 1:].strip()
+            pred = l[0:l.find('>') + 1]
+            l = l[l.find('>') + 1:].strip().strip('.').strip()
+            obj = l
+
+
+            db_triple = [subj, pred, obj]
+            for i in range(0, 3):
                 db_triple[i] = unify_triple_item_format(db_triple[i])
 
 
             useful = False
             for q_triple in query_triples:
                 match = True
-                for i in range(0, 1, 2):
+                for i in range(0, 3):
                     if q_triple[i] != 'VAR' and q_triple[i] != db_triple[i]:
                         match=False
                         break
@@ -328,4 +336,5 @@ if __name__ == '__main__':
     for name in core_names:
         dbpedia_file = '%s/%s.ttl' % (dbpedia_data_dir, name)
         filter_file = '%s/%s.ttl' % (dbpedia_data_dir, name + '_filter')
-        slice_dbpedia(dbpedia_file, filter_file, all_triples)
+        p = Process(target=slice_dbpedia, args=(dbpedia_file, filter_file, all_triples))
+        p.start()
