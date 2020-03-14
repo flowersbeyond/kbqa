@@ -286,7 +286,7 @@ def extract_triples(query):
 
 def unify_triple_item_format(item):
     item = item.replace('\'', '\"')
-    item = urllib.parse.unquote(str(item), encoding='utf-8')
+    #item = urllib.parse.unquote(str(item), encoding='utf-8')
     if item.startswith('<'):
         item = item[0: item.rfind('>') + 1]
     elif item.startswith('\"'):
@@ -300,6 +300,7 @@ def unify_triple_item_format(item):
 
 
 def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
+    query_triples = set(query_triples.keys())
     with open(dbpedia_file, encoding='utf-8') as fin, open(filter_result_file, encoding='utf-8', mode='w') as fout:
         pbar = tqdm(fin)
         for l in pbar:
@@ -311,24 +312,11 @@ def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
             pred = l[0:l.find('>') + 1]
             l = l[l.find('>') + 1:].strip().strip('.').strip()
             obj = l
+            obj = unify_triple_item_format(obj)
 
 
-            db_triple = [subj, pred, obj]
-            for i in range(0, 3):
-                db_triple[i] = unify_triple_item_format(db_triple[i])
-
-
-            useful = False
-            for q_triple in query_triples:
-                match = True
-                for i in range(0, 3):
-                    if q_triple[i] != 'VAR' and q_triple[i] != db_triple[i]:
-                        match=False
-                        break
-                if match:
-                    useful = True
-                    break
-            if useful:
+            if ('VAR', pred, obj) in query_triples or (subj, pred, 'VAR') in query_triples or (subj, 'VAR', pred) in query_triples \
+                or ('VAR', 'VAR', obj) in query_triples or (subj, 'VAR', 'VAR') in query_triples or ('VAR', pred, 'VAR') in query_triples:
                 fout.write(line)
 
 
