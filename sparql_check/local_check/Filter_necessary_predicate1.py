@@ -24,6 +24,7 @@ def extract_triple_id_map(file, idflag):
         for l in fin:
             question = json.loads(l)
             id = question['id']
+
             query = question['query']['sparql']
 
             triples = extract_triples(query)
@@ -65,7 +66,7 @@ def inflate_bindings(triples, var_bindings):
                 for i in range(0, 3):
                     new_triple.append(triple[i])
                     if triple[i].startswith('?'):
-                        var_name = triple[i][0:]
+                        var_name = triple[i][1:]
                         if var_name in binding:
                             new_triple[i] = binding[var_name]
                         else:
@@ -363,7 +364,7 @@ if __name__ == '__main__':
     all_triples[('VAR','VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>')] = set('exception')
     all_triples[('VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>', 'VAR')] = set('exception')
 
-    '''
+
     dbpedia_data_dir = './data/DBPedia/core8/'
     core_names = [
         'labels_en',
@@ -383,4 +384,4 @@ if __name__ == '__main__':
         filter_file = '%s/%s.ttl' % (dbpedia_data_dir, name + '_filter')
         p = Process(target=slice_dbpedia, args=(dbpedia_file, filter_file, all_triples))
         p.start()
-    '''
+
