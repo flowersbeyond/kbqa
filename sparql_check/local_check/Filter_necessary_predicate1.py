@@ -254,7 +254,7 @@ def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
         for l in pbar:
             if l.startswith('#'):
                 continue
-
+            line = l
             subj = l[0:l.find('>') + 1]
             l = l[l.find('>') + 1:].strip()
             pred = l[0:l.find('>') + 1]
@@ -278,7 +278,7 @@ def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
                     useful = True
                     break
             if useful:
-                fout.write(l)
+                fout.write(line)
 
 
 if __name__ == '__main__':
@@ -313,6 +313,19 @@ if __name__ == '__main__':
 
     for query in full_query_id_map:
         triples = extract_triples(query)
+        more_than_two_vars = False
+        for triple in triples:
+            var_count = 0
+            if triple[0] == 'VAR':
+                var_count += 1
+            if triple[1] == 'VAR':
+                var_count += 1
+            if triple[2] == 'VAR':
+                var_count += 1
+            if var_count >= 2:
+                print(str(triple))
+
+
         all_triples.extend(triples)
 
     all_triples.append(['VAR','VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>'])
