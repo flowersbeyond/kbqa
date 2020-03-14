@@ -1,5 +1,6 @@
 import json
 import re
+import urllib.parse
 from tqdm import tqdm
 from multiprocessing import Process
 
@@ -16,27 +17,70 @@ public_prefix = {
                     'dct': '<http://purl.org/dc/terms/>',
                     'dbc': '<http://dbpedia.org/resource/Category:>'
                  }
-def extract_id_query(file, idflag):
+def extract_triple_id_map(file, idflag):
 
-    queries = {}
+    triple_id_map = {}
     with open(file, encoding='utf-8') as fin:
         for l in fin:
             question = json.loads(l)
             id = question['id']
             query = question['query']['sparql']
 
-            query = unify_query(query)
+            triples = extract_triples(query)
+            var_bindings = parse_var_bindings(question['answers'])
+            triples = inflate_bindings(triples, var_bindings)
 
-            if query not in queries:
-                queries[query] = []
-            queries[query].append(idflag + '_' + str(id))
-    return queries
+            for triple in triples:
+                triple_tuple = (triple[0], triple[1], triple[2])
+                if triple_tuple not in triple_id_map:
+                    triple_id_map[triple_tuple] = set()
+                triple_id_map[triple_tuple].add(idflag + '_' + str(id))
+
+    return triple_id_map
+
+def parse_var_bindings(answer):
+    parse_bindings = []
+    head = answer['head']
+    if 'vars' in head:
+
+        bindings = answer['results']['bindings']
+        for binding in bindings:
+            if len(binding) > 0:
+                parse_binding = {}
+                for key in binding:
+                    value = binding[key]['value']
+                    value = urllib.parse.unquote(str(value), encoding='utf-8')
+                    parse_binding[key] = value
+                parse_bindings.append(parse_binding)
+
+    return parse_bindings
+
+
+def inflate_bindings(triples, var_bindings):
+    inflated_triples = []
+    for triple in triples:
+        if triple[0].startswith('?') or triple[1].startswith('?') or triple[2].startswith('?'):
+            for binding in var_bindings:
+                new_triple = []
+                for i in range(0, 3):
+                    new_triple.append(triple[i])
+                    if triple[i].startswith('?'):
+                        var_name = triple[i][0:]
+                        if var_name in binding:
+                            new_triple[i] = binding[var_name]
+                        else:
+                            new_triple[i] = 'VAR'
+                inflated_triples.append(new_triple)
+    return inflated_triples
+
 
 
 def unify_query(query):
+    query = query.replace('\'', '\"')
     query = query.replace('\n', ' ')
     query = re.sub(r"\s+", " ", query)
     query = query.strip()
+
 
     # sort prefix:
     prefix = ''
@@ -70,10 +114,16 @@ def unify_query(query):
 
         return final_query
 
+
     return None
+
 
 def tokenize(query):
     query = query.replace('\'', '\"')
+    query = query.replace('\n', ' ')
+    query = re.sub(r"\s+", " ", query)
+    query = query.strip()
+
     tokens = []
 
     pos = 0
@@ -122,6 +172,7 @@ def tokenize(query):
         tokens.append(token)
     return tokens
 
+
 def parse_triple(triple_statements):
     if len(triple_statements) <=2:
         print('triple less than 3 tokens:' + str(triple_statements))
@@ -148,10 +199,6 @@ def parse_triple(triple_statements):
             pos = pos + 3
 
     return triples
-
-
-
-
 
 
 def extract_triples_from_block(block):
@@ -223,9 +270,8 @@ def extract_triples(query):
         for i in range(0, 3):
             item = triple[i]
             replaced_item = item
-            if item.startswith('?'):
-                replaced_item = 'VAR'
-            elif item.find(':') != -1 and not item.startswith('<') and not item.startswith('\"'):
+
+            if item.find(':') != -1 and not item.startswith('<') and not item.startswith('\"'):
                 pair = item.split(':')
                 if pair[0] not in prefixes:
                     replaced_item = public_prefix[pair[0]][0:-1] + pair[1] + '>'
@@ -236,8 +282,10 @@ def extract_triples(query):
 
     return triples
 
+
 def unify_triple_item_format(item):
     item = item.replace('\'', '\"')
+    item = urllib.parse.unquote(str(item), encoding='utf-8')
     if item.startswith('<'):
         item = item[0: item.rfind('>') + 1]
     elif item.startswith('\"'):
@@ -248,6 +296,8 @@ def unify_triple_item_format(item):
             pos += 1
         item = token
     return item
+
+
 def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
     with open(dbpedia_file, encoding='utf-8') as fin, open(filter_result_file, encoding='utf-8', mode='w') as fout:
         pbar = tqdm(fin)
@@ -283,55 +333,37 @@ def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
 
 if __name__ == '__main__':
 
-
-
     qald_multilingual_train = './data/QALD/train-multilingual-4-9.jsonl'
-    train_id_queries = extract_id_query(qald_multilingual_train, 'train')
+    train_triple_ids = extract_triple_id_map(qald_multilingual_train, 'train')
 
     qald_multilingual_test = './data/QALD/test-multilingual-4-9.jsonl'
-    test_id_queries = extract_id_query(qald_multilingual_test, 'test')
+    test_triple_ids = extract_triple_id_map(qald_multilingual_test, 'test')
 
-    full_query_id_map = {}
-    for query in train_id_queries:
-        full_query_id_map[query] = train_id_queries[query]
-    for query in test_id_queries:
-        if query not in full_query_id_map:
-            full_query_id_map[query] = []
-        full_query_id_map[query].extend(test_id_queries[query])
+    all_triples = train_triple_ids
 
-    all_queries_file = './data/QALD/all_queries.txt'
-    with open(all_queries_file, encoding='utf-8', mode='w') as fout:
-        for q in full_query_id_map:
-            fout.write(q + '\n')
+    for triple in test_triple_ids:
+        if not triple in all_triples:
+            all_triples[triple] = test_triple_ids[triple]
+        else:
+            all_triples[triple].update(test_triple_ids[triple])
 
-    full_query_id_map_file = './data/QALD/all_queries_id_map.jsonl'
-    with open(full_query_id_map_file, encoding='utf-8', mode='w') as fout:
-        for q in full_query_id_map:
-            fout.write(json.dumps({'query':q, 'id':full_query_id_map[q]}) + '\n')
-
-    all_triples = []
-
-    for query in full_query_id_map:
-        triples = extract_triples(query)
+    for triple in all_triples:
         more_than_two_vars = False
-        for triple in triples:
-            var_count = 0
-            if triple[0] == 'VAR':
-                var_count += 1
-            if triple[1] == 'VAR':
-                var_count += 1
-            if triple[2] == 'VAR':
-                var_count += 1
-            if var_count >= 2:
-                print(str(triple))
+        var_count = 0
+        if triple[0] == 'VAR':
+            var_count += 1
+        if triple[1] == 'VAR':
+            var_count += 1
+        if triple[2] == 'VAR':
+            var_count += 1
+        if var_count >= 2:
+            print(str(triple) + ':\t' + str(all_triples[triple]))
 
 
-        all_triples.extend(triples)
+    all_triples[('VAR','VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>')] = set('exception')
+    all_triples[('VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>', 'VAR')] = set('exception')
 
-    all_triples.append(['VAR','VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>'])
-    all_triples.append(['VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>', 'VAR'])
-
-
+    '''
     dbpedia_data_dir = './data/DBPedia/core8/'
     core_names = [
         'labels_en',
@@ -351,3 +383,4 @@ if __name__ == '__main__':
         filter_file = '%s/%s.ttl' % (dbpedia_data_dir, name + '_filter')
         p = Process(target=slice_dbpedia, args=(dbpedia_file, filter_file, all_triples))
         p.start()
+    '''
