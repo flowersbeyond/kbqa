@@ -136,7 +136,7 @@ def tokenize(query):
             token += '>'
             pos += 1
         else:
-            while pos < len(query) and query[pos] not in ['{', '}', '<', '>', '(', ')', '.', ';', ' ']:
+            while pos < len(query) and query[pos] not in ['{', '}', '<', '>', '(', ')', ';', ' ']:
                 token += query[pos]
                 pos += 1
         tokens.append(token)
@@ -231,6 +231,9 @@ def parse_var_bindings(answer):
                 for key in binding:
                     value = binding[key]['value']
                     value = urllib.parse.unquote(str(value), encoding='utf-8')
+                    if value.find('http') != -1:
+                        value = '<' + value + '>'
+                    value = unify_triple_item_format(value)
                     parse_binding[key] = value
                 parse_bindings.append(parse_binding)
 
@@ -331,10 +334,22 @@ if __name__ == '__main__':
     all_triples_file = './data/QALD/all_triples.txt'
     with open(all_triples_file, encoding='utf-8', mode='w') as fout:
         for triple in all_triples:
-            fout.write(str(triple))
+            unknown_count = 0
+            for i in range(0, 3):
+                if triple[i].startswith('http'):
+                    print(triple)
+                if triple[i].endswith('.'):
+                    print(triple)
+                if triple[i] == 'VAR':
+                    unknown_count += 1
+            if unknown_count >= 2:
+                print(triple)
+            #if not (triple[1].startswith('<') and triple[1].endswith('>')):
+                #if not (triple[2].startswith('<http://dbpedia.org/ontology/')) and not (triple[2].startswith('<http://dbpedia.org/class/yago/')):
+                    #fout.write(str(triple) + '\n')
 
 
-
+    '''
     dbpedia_data_dir = './data/DBPedia/core8/'
     core_names = [
         'labels_en',
@@ -353,4 +368,5 @@ if __name__ == '__main__':
         dbpedia_file = '%s/%s.ttl' % (dbpedia_data_dir, name)
         filter_file = '%s/%s.ttl' % (dbpedia_data_dir, name + '_filter')
         slice_dbpedia(dbpedia_file, filter_file, all_triples)
+    '''
 

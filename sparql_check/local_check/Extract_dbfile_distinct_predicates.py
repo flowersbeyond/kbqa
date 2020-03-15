@@ -1,5 +1,37 @@
 from tqdm import tqdm
 
+def unify_triple_item_format(item):
+    item = item.replace('\'', '\"')
+    if item.startswith('<'):
+        item = item[0: item.rfind('>') + 1]
+    elif item.startswith('\"'):
+        pos = 1
+        token = ''
+        while item[pos] != '\"':
+            token += item[pos]
+            pos += 1
+        item = token
+    return item
+
+def parse_dbpedia_line(line):
+
+    subj = line[0:line.find('>') + 1]
+    line = line[line.find('>') + 1:].strip()
+    pred = ''
+
+    if line.startswith('a '):
+        pred = 'a'
+        line = line[2:].strip().strip('.').strip()
+        print(line)
+    else:
+        pred = line[0:line.find('>') + 1]
+        line = line[line.find('>') + 1:].strip().strip('.').strip()
+
+    obj = line
+    obj = unify_triple_item_format(obj)
+
+    return subj, pred, obj
+
 if __name__ == '__main__':
     dbpedia_data_dir = './data/DBPedia/core8/'
     core_names = [
@@ -34,12 +66,12 @@ if __name__ == '__main__':
                 if l.startswith('#'):
                     continue
 
-                triples = l.strip().split()
-                predicate = triples[1]
-                if not (predicate.startswith('<') and predicate.endswith('>')):
-                    print(name + ':\t' + l + ':\t' + predicate)
-
-                if predicate not in predicate_set:
+                subj, pred, obj = parse_dbpedia_line(l)
+                if obj.startswith('<http://dbpedia.org/ontology/') or obj.startswith('<http://dbpedia.org/class/yago/'):
                     fout.write(l)
-                    predicate_set.add(predicate)
+                '''
+                if pred not in predicate_set:
+                    fout.write(l)
+                    predicate_set.add(pred)
+                '''
 
