@@ -27,15 +27,17 @@ def extract_triple_id_map(file, idflag):
 
             query = question['query']['sparql']
 
-            triples = extract_triples(query)
+            raw_triples = extract_triples(query)
             var_bindings = parse_var_bindings(question['answers'])
-            triples = inflate_bindings(triples, var_bindings)
+            triples = inflate_bindings(raw_triples, var_bindings)
 
             for triple in triples:
                 triple_tuple = (triple[0], triple[1], triple[2])
                 if triple_tuple not in triple_id_map:
                     triple_id_map[triple_tuple] = set()
                 triple_id_map[triple_tuple].add(idflag + '_' + str(id))
+                #if triple[0]== '<http://dbpedia.org/resource/Jimmy_Mainfroi>':
+                #    print(query)
 
     return triple_id_map
 
@@ -75,11 +77,20 @@ def extract_triples(query):
         for i in range(0, 3):
             item = triple[i]
             replaced_item = item
+            if item == 'a':
+                item = 'rdf:type'
+            if item.endswith('.'):
+                if item.find(':') != -1 or item.startswith('?'):
+                    item = item.strip('.')
+                #else:
+                #    print(query + ':\t' + item)
 
-            if item.find(':') != -1 and not item.startswith('<') and not item.startswith('\"'):
+            if item.find(':') != -1 and not item.startswith('<') and not item.startswith('\"') and not item.startswith('\''):
                 pair = item.split(':')
                 if pair[0] not in prefixes:
                     replaced_item = public_prefix[pair[0]][0:-1] + pair[1] + '>'
+                    #if item != 'rdf:type':
+                    #    print(query)
                 else:
                     replaced_item = prefixes[pair[0]][0:-1] + pair[1] + '>'
 
@@ -89,7 +100,6 @@ def extract_triples(query):
 
 
 def tokenize(query):
-    query = query.replace('\'', '\"')
     query = query.replace('\n', ' ')
     query = re.sub(r"\s+", " ", query)
     query = query.strip()
@@ -123,6 +133,15 @@ def tokenize(query):
             token = query[pos]
             pos += 1
             while query[pos] != '\"':
+                token += query[pos]
+                pos += 1
+            while query[pos] != ' ':
+                token += query[pos]
+                pos += 1
+        elif query[pos] == '\'':
+            token = query[pos]
+            pos += 1
+            while query[pos] != '\'':
                 token += query[pos]
                 pos += 1
             while query[pos] != ' ':
@@ -206,13 +225,20 @@ def extract_triples_from_triple_statements(triple_statements):
 
 
 def unify_triple_item_format(item):
-    item = item.replace('\'', '\"')
+    item = item.strip()
     if item.startswith('<'):
         item = item[0: item.rfind('>') + 1]
     elif item.startswith('\"'):
         pos = 1
         token = ''
         while item[pos] != '\"':
+            token += item[pos]
+            pos += 1
+        item = token
+    elif item.startswith('\''):
+        pos = 1
+        token = ''
+        while item[pos] != '\'':
             token += item[pos]
             pos += 1
         item = token
@@ -260,6 +286,8 @@ def inflate_bindings(triples, var_bindings):
 
 def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
     query_triples = set(query_triples.keys())
+
+    hit_triple_set = set()
     with open(dbpedia_file, encoding='utf-8') as fin, open(filter_result_file, encoding='utf-8', mode='w') as fout:
         pbar = tqdm(fin)
         for l in pbar:
@@ -269,10 +297,14 @@ def slice_dbpedia(dbpedia_file, filter_result_file, query_triples):
                 print (dbpedia_file + l)
 
             subj, pred, obj = parse_dbpedia_line(l)
+            possible_hits = [(subj, pred, obj), ('VAR', pred, obj), (subj, pred, 'VAR'), (subj, 'VAR', pred),
+                             ('VAR', 'VAR', obj), (subj, 'VAR', 'VAR'), ('VAR', pred, 'VAR')]
 
-            if ('VAR', pred, obj) in query_triples or (subj, pred, 'VAR') in query_triples or (subj, 'VAR', pred) in query_triples \
-                or ('VAR', 'VAR', obj) in query_triples or (subj, 'VAR', 'VAR') in query_triples or ('VAR', pred, 'VAR') in query_triples:
-                fout.write(l)
+            for hit in possible_hits:
+                if hit in query_triples:
+                    fout.write(l)
+                    hit_triple_set.add(hit)
+    return hit_triple_set
 
 
 def parse_dbpedia_line(line):
@@ -296,6 +328,72 @@ def parse_dbpedia_line(line):
 
 
 
+def get_question_triple_coverage(data_file, all_missing_triples, covered_file, unknown_file, failed_file):
+    fail_ids = {}
+    unknown_ids = {}
+    covered_ids = {}
+    with open(data_file, encoding='utf-8') as fin:
+        for l in fin:
+            question = json.loads(l)
+            id = question['id']
+
+            query = question['query']['sparql']
+
+            raw_triples = extract_triples(query)
+            var_bindings = parse_var_bindings(question['answers'])
+            triples = inflate_bindings(raw_triples, var_bindings)
+
+            fail = False
+            unknown = False
+            for triple in triples:
+                triple_tuple = (triple[0], triple[1], triple[2])
+                if triple_tuple in all_missing_triples:
+                    fail = True
+                    ##debug
+                    src_ids = parse_question_source(question['merge'])
+                    if '9' in src_ids:
+                        print(query + ':\t' + str(triple_tuple))
+                    ##enddebug
+
+                    break
+                if triple[0] == 'VAR' or triple[1] == 'VAR' or triple[2] == 'VAR':
+                    unknown = True
+
+            if fail:
+                fail_ids[id] = parse_question_source(question['merge'])
+            elif unknown:
+                unknown_ids[id] = parse_question_source(question['merge'])
+            else:
+                covered_ids[id] = parse_question_source(question['merge'])
+
+
+
+    with open(failed_file, encoding='utf-8', mode='w') as fout:
+        for id in fail_ids:
+            fout.write(str(id) + ':\t' + ' '.join(fail_ids[id]) + '\n')
+    with open(unknown_file, encoding='utf-8', mode='w') as fout:
+        for id in unknown_ids:
+            fout.write(str(id) + ':\t' + ' '.join(unknown_ids[id]) + '\n')
+
+    with open(covered_file, encoding='utf-8', mode='w') as fout:
+        for id in covered_ids:
+            fout.write(str(id) + ':\t' + ' '.join(covered_ids[id]) + '\n')
+
+
+
+
+def parse_question_source(src_str):
+    #'6#4_D9#164'
+    sources = src_str.split('_')
+    result = []
+    for src in sources:
+        if src.startswith('D') or src.startswith('M'):
+            result.append(src[1])
+        else:
+            result.append(src[0])
+    return result
+
+
 
 if __name__ == '__main__':
 
@@ -305,68 +403,80 @@ if __name__ == '__main__':
     qald_multilingual_test = './data/QALD/test-multilingual-4-9.jsonl'
     test_triple_ids = extract_triple_id_map(qald_multilingual_test, 'test')
 
-    all_triples = train_triple_ids
+    do_extract_triples = False
+    if do_extract_triples:
+        all_triples = train_triple_ids
 
-    for triple in test_triple_ids:
-        if not triple in all_triples:
-            all_triples[triple] = test_triple_ids[triple]
-        else:
-            all_triples[triple].update(test_triple_ids[triple])
-
-    '''
-    for triple in all_triples:
-        more_than_two_vars = False
-        var_count = 0
-        if triple[0] == 'VAR':
-            var_count += 1
-        if triple[1] == 'VAR':
-            var_count += 1
-        if triple[2] == 'VAR':
-            var_count += 1
-        if var_count >= 2:
-            print(str(triple) + ':\t' + str(all_triples[triple]))
-    '''
+        for triple in test_triple_ids:
+            if not triple in all_triples:
+                all_triples[triple] = test_triple_ids[triple]
+            else:
+                all_triples[triple].update(test_triple_ids[triple])
 
 
-    all_triples[('VAR','VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>')] = set('exception')
-    all_triples[('VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>', 'VAR')] = set('exception')
+        all_triples[('VAR','VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>')] = set('exception')
+        all_triples[('VAR', '<http://dbpedia.org/resource/Daniel_Jurafsky>', 'VAR')] = set('exception')
+        all_triples[('<http://dbpedia.org/resource/Daniel_Jurafsky>', 'VAR', 'VAR')] = set('exception')
 
-    all_triples_file = './data/QALD/all_triples.txt'
-    with open(all_triples_file, encoding='utf-8', mode='w') as fout:
-        for triple in all_triples:
-            unknown_count = 0
-            for i in range(0, 3):
-                if triple[i].startswith('http'):
-                    print(triple)
-                if triple[i].endswith('.'):
-                    print(triple)
-                if triple[i] == 'VAR':
-                    unknown_count += 1
-            if unknown_count >= 2:
-                print(triple)
-            #if not (triple[1].startswith('<') and triple[1].endswith('>')):
-                #if not (triple[2].startswith('<http://dbpedia.org/ontology/')) and not (triple[2].startswith('<http://dbpedia.org/class/yago/')):
-                    #fout.write(str(triple) + '\n')
+        all_triples_file = './data/QALD/all_triples.txt'
+        with open(all_triples_file, encoding='utf-8', mode='w') as fout:
+            for triple in all_triples:
+                unknown_count = 0
+                for i in range(0, 3):
+                    if triple[i] == 'VAR':
+                        unknown_count += 1
+                if unknown_count >= 2:
+                    fout.write('%s\t%s\t%s\n' % (triple[0], triple[1], triple[2]))
 
 
-    '''
-    dbpedia_data_dir = './data/DBPedia/core8/'
-    core_names = [
-        'labels_en',
-        'category_labels_en',
+    do_slice = False
+    if do_extract_triples and do_slice:
+        dbpedia_data_dir = './data/DBPedia/core8/'
+        core_names = [
+            'labels_en',
+            'category_labels_en',
 
-        'article_categories_en',
-        'instance_types_en',
-        'infobox_properties_en',
-        'mappingbased_literals_en',
-        'mappingbased_objects_en',
-        'persondata_en'
+            'article_categories_en',
+            'instance_types_en',
+            'infobox_properties_en',
+            'mappingbased_literals_en',
+            'mappingbased_objects_en',
+            'persondata_en'
 
-    ]
+        ]
 
-    for name in core_names:
-        dbpedia_file = '%s/%s.ttl' % (dbpedia_data_dir, name)
-        filter_file = '%s/%s.ttl' % (dbpedia_data_dir, name + '_filter')
-        slice_dbpedia(dbpedia_file, filter_file, all_triples)
-    '''
+        total_hit_set = set()
+        for name in core_names:
+            dbpedia_file = '%s/%s.ttl' % (dbpedia_data_dir, name)
+            filter_file = '%s/%s.ttl' % (dbpedia_data_dir, name + '_filter')
+            hit_set = slice_dbpedia(dbpedia_file, filter_file, all_triples)
+            total_hit_set.update(hit_set)
+            print(len(hit_set))
+        print(len(total_hit_set))
+        print(len(all_triples))
+
+        all_missing_triples_file = './data/QALD/all_missing_triples.txt'
+        with open(all_missing_triples_file, encoding='utf-8', mode='w') as fout:
+            for triple in all_triples:
+                if triple not in total_hit_set:
+                    fout.write('%s\t%s\t%s\n' % (triple[0], triple[1], triple[2]))
+
+
+    get_question_status = True
+
+    if get_question_status:
+        all_missing_triples_file = './data/QALD/all_missing_triples.txt'
+        all_missing_triples = set()
+        with open(all_missing_triples_file, encoding='utf-8') as fin:
+            for l in fin:
+                triple = l.strip().split('\t')
+                all_missing_triples.add((triple[0], triple[1], triple[2]))
+
+        get_question_triple_coverage(qald_multilingual_train, all_missing_triples, './data/QALD/train_covered.txt',
+                                     './data/QALD/train_unknown.txt', './data/QALD/train_failed.txt')
+        get_question_triple_coverage(qald_multilingual_test, all_missing_triples, './data/QALD/test_covered.txt',
+                                     './data/QALD/test_unknown.txt', './data/QALD/test_failed.txt')
+
+
+
 

@@ -8,7 +8,7 @@ def load_all_core_data(data_dir, core_names):
 
     for name in core_names:
         print(name + '\t loading...')
-        g.parse('%s/%s.ttl'%(data_dir, name), format='turtle')
+        g.parse('%s/%s_filter.ttl'%(data_dir, name), format='turtle')
         print(name + '\tfinished loading.')
 
     return g
@@ -34,28 +34,37 @@ def interpret_result(qres):
     return answers
 
 
-def extract_id_query(file):
+def extract_id_query(data_file, unknown_id_file):
 
+    unknown_ids = []
+    with open(unknown_id_file, encoding='utf-8') as fin:
+        for l in fin:
+            id = l.split('\t')[0].strip(':')
+            unknown_ids.append(id)
     questions = {}
-    with open(file, encoding='utf-8') as fin:
+    with open(data_file, encoding='utf-8') as fin:
         for l in fin:
             question = json.loads(l)
             id = question['id']
-            query = question['query']['sparql']
-            questions[id] = query
+            if str(id) in unknown_ids:
+                query = question['query']['sparql']
+                questions[id] = query
+
     return questions
 
 
 if __name__ == '__main__':
 
     qald_multilingual_train = './data/QALD/train-multilingual-4-9.jsonl'
+    train_unknown = './data/QALD/train_unknown.txt'
     qald_multilingual_test = './data/QALD/test-multilingual-4-9.jsonl'
+    test_unknown = './data/QALD/test_unknown.txt'
 
     train_result = './data/QALD/train-multilingual-4-9_local_result.jsonl'
     test_result = './data/QALD/test-multilingual-4-9_local_result.jsonl'
 
-    train_queries = extract_id_query(qald_multilingual_train)
-    test_queries = extract_id_query(qald_multilingual_test)
+    train_queries = extract_id_query(qald_multilingual_train, train_unknown)
+    test_queries = extract_id_query(qald_multilingual_test, test_unknown)
 
 
     dbpedia_data_dir = './data/DBPedia/core8/'
@@ -73,6 +82,8 @@ if __name__ == '__main__':
     ]
 
     g = load_all_core_data(dbpedia_data_dir, core_names)
+    
+    
 
     with open(train_result, encoding='utf-8', mode='w') as fout:
 
@@ -122,3 +133,4 @@ if __name__ == '__main__':
             print('end query...')
         elif query == 'exit':
             break
+

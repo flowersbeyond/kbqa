@@ -56,8 +56,8 @@ if __name__ == '__main__':
             all_rdf_ids.add(l.strip())
     '''
 
-    predicate_file_map = {}
-    map_file = '%s/%s.txt' % (dbpedia_data_dir, 'predicate_filename_map')
+    entity_file_map = {}
+    map_file = '%s/%s.txt' % (dbpedia_data_dir, 'entity_filename_map')
     for name in core_names:
         dbpedia_file = '%s/%s.ttl'%(dbpedia_data_dir, name)
 
@@ -69,14 +69,21 @@ if __name__ == '__main__':
                     continue
 
                 subj, pred, obj = parse_dbpedia_line(l)
+                if subj.startswith('<') and subj.endswith('>'):
 
-                if pred not in predicate_file_map:
-                    predicate_file_map[pred] = set()
-                predicate_file_map[pred].add(name)
+                    if subj not in entity_file_map:
+                        entity_file_map[subj] = set()
+                    entity_file_map[subj].add(name)
+
+                if obj.startswith('<') and obj.endswith('>'):
+                    if obj not in entity_file_map:
+                        entity_file_map[obj] = set()
+                    entity_file_map[obj].add(name)
+
     with open(map_file, encoding='utf-8', mode='w') as fout:
-        for pred in predicate_file_map:
-            line = pred + ':'
-            for filename in predicate_file_map[pred]:
+        for entity in entity_file_map:
+            line = entity + ':'
+            for filename in entity_file_map[entity]:
                 line += '\t' + filename
 
             fout.write(line + '\n')
