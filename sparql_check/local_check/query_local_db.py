@@ -1,5 +1,6 @@
 from rdflib.graph import Graph
 import json
+from tqdm import tqdm
 
 
 def load_all_core_data(data_dir, core_names):
@@ -86,8 +87,8 @@ if __name__ == '__main__':
     
 
     with open(train_result, encoding='utf-8', mode='w') as fout:
-
-        for id in train_queries:
+        pbar = tqdm(train_queries)
+        for id in pbar:
             try:
                 qres = g.query(train_queries[id])
                 answers = interpret_result(qres)
@@ -99,8 +100,8 @@ if __name__ == '__main__':
                 fout.write('\n')
 
     with open(test_result, encoding='utf-8', mode='w') as fout:
-
-        for id in test_queries:
+        pbar = tqdm(test_queries)
+        for id in pbar:
             try:
                 qres = g.query(test_queries[id])
                 answers = interpret_result(qres)
