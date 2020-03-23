@@ -1,21 +1,33 @@
-from rdflib.graph import Graph
 import json
 from tqdm import tqdm
 
+from sparql_check.Sparql_Execute_Utils import query_dbpedia
+from sparql_check.local_check.Rdf_Utils import public_prefix
+from sparql_check.local_check.Sparql_Utils import extract_prefixes
+from rdflib.graph import Graph
 
-def load_all_core_data(data_dir, core_names):
+def extract_id_query(data_file):
 
-    g = Graph()
+    questions = {}
+    with open(data_file, encoding='utf-8') as fin:
+        for l in fin:
+            question = json.loads(l)
+            id = question['id']
 
-    for name in core_names:
-        print(name + '\t loading...')
-        g.parse('%s/%s_filter.ttl'%(data_dir, name), format='turtle')
-        print(name + '\tfinished loading.')
+            query = question['query']['sparql']
+            questions[id] = query
 
-    return g
+    return questions
 
+def append_missing_prefix(query):
+    existing_prefixs = extract_prefixes(query)
+    for pref in public_prefix:
+        if pref not in existing_prefixs:
+            query = ('PREFIX %s: %s ' % (pref, public_prefix[pref])) + query
 
-def interpret_result(qres):
+    return query
+
+def interpret_rdflib_result(qres):
     answers = []
 
     if qres.bindings != None:
@@ -34,104 +46,77 @@ def interpret_result(qres):
 
     return answers
 
+def run_gold_query(data_file_name, ans_output_file, unknown_list, type, rdfgraph=None):
+    print("Processing %s" % data_file_name)
+    questions = extract_id_query(data_file_name)
 
-def extract_id_query(data_file, unknown_id_file):
+    with open(ans_output_file, mode='w', encoding='utf-8') as fout:
+        pbar = tqdm(questions)
+        for id in pbar:
+            if id in unknown_list:
+                query = questions[id]
+                query = append_missing_prefix(query)
+                if type == 'jena':
+                    result = query_dbpedia(query, "http://localhost:3030/ds/query")
+                else:
+                    try:
+                        qres = rdfgraph.query(query)
+                        result = interpret_rdflib_result(qres)
 
-    unknown_ids = []
-    with open(unknown_id_file, encoding='utf-8') as fin:
-        for l in fin:
-            id = l.split('\t')[0].strip(':')
-            unknown_ids.append(id)
-    questions = {}
-    with open(data_file, encoding='utf-8') as fin:
-        for l in fin:
-            question = json.loads(l)
-            id = question['id']
-            if str(id) in unknown_ids:
-                query = question['query']['sparql']
-                questions[id] = query
+                    except Exception as e:
+                        result = {'error': str(e)}
 
-    return questions
+                result_dict = {}
+                result_dict['id'] = id
+                result_dict['result'] = result
 
+                fout.write(json.dumps(result_dict).strip() + '\n')
+
+def get_unknown_list(unknown_file):
+    with open(unknown_file) as fin:
+        l = fin.readline()
+        unknown_list = json.loads(l)['unknown']
+        return unknown_list
 
 if __name__ == '__main__':
 
     qald_multilingual_train = './data/QALD/train-multilingual-4-9.jsonl'
-    train_unknown = './data/QALD/train_unknown.txt'
     qald_multilingual_test = './data/QALD/test-multilingual-4-9.jsonl'
-    test_unknown = './data/QALD/test_unknown.txt'
-
-    train_result = './data/QALD/train-multilingual-4-9_local_result.jsonl'
-    test_result = './data/QALD/test-multilingual-4-9_local_result.jsonl'
-
-    train_queries = extract_id_query(qald_multilingual_train, train_unknown)
-    test_queries = extract_id_query(qald_multilingual_test, test_unknown)
 
 
-    dbpedia_data_dir = './data/DBPedia/core8/'
-    core_names = [
-        'labels_en',
-        'category_labels_en',
+    dataset_mode = 'core'
+    run_jena = False
+    if run_jena:
+        train_unknown_file = './data/QALD/%s_question_coverage_%s.txt' % ('train', dataset_mode)
+        train_unknown_list = get_unknown_list(train_unknown_file)
 
-        'article_categories_en',
-        'instance_types_en',
-        'infobox_properties_en',
-        'mappingbased_literals_en',
-        'mappingbased_objects_en',
-        'persondata_en'
+        test_unknown_file = './data/QALD/%s_question_coverage_%s.txt' % ('train', dataset_mode)
+        test_unknown_list = get_unknown_list(test_unknown_file)
 
-    ]
+        train_result = './data/QALD/train-multilingual-4-9_jena_%s_result.jsonl' % dataset_mode
+        test_result = './data/QALD/test-multilingual-4-9_jena_%s_result.jsonl' % dataset_mode
 
-    g = load_all_core_data(dbpedia_data_dir, core_names)
-    
-    
+        run_gold_query(qald_multilingual_train, train_result, train_unknown_list, type='jena')
+        run_gold_query(qald_multilingual_test, test_result, test_unknown_list, type='jena')
 
-    with open(train_result, encoding='utf-8', mode='w') as fout:
-        pbar = tqdm(train_queries)
-        for id in pbar:
-            try:
-                qres = g.query(train_queries[id])
-                answers = interpret_result(qres)
-                fout.write(json.dumps({'id':id, 'answer':answers}))
-                fout.write('\n')
+    run_rdflib = True
+    if run_rdflib:
+        for dataset_mode in ['minicore', 'core', 'extend']:
+            g = Graph()
+            dbpedia_root_dir = 'D:/Research/kbqa/data/DBPedia/'
+            ttl_file = dbpedia_root_dir + 'slices/merge/' + dataset_mode + '.ttl'
+            print('begin loading.')
+            g.parse(ttl_file, format='turtle')
+            print('finished loading.')
 
-            except Exception as e:
-                fout.write(json.dumps({'id':id, 'error':str(e)}))
-                fout.write('\n')
+            train_unknown_file = './data/QALD/%s_question_coverage_%s.txt' % ('train', dataset_mode)
+            train_unknown_list = get_unknown_list(train_unknown_file)
 
-    with open(test_result, encoding='utf-8', mode='w') as fout:
-        pbar = tqdm(test_queries)
-        for id in pbar:
-            try:
-                qres = g.query(test_queries[id])
-                answers = interpret_result(qres)
-                fout.write(json.dumps({'id':id, 'answer':answers}))
-                fout.write('\n')
+            test_unknown_file = './data/QALD/%s_question_coverage_%s.txt' % ('train', dataset_mode)
+            test_unknown_list = get_unknown_list(test_unknown_file)
 
-            except Exception as e:
-                fout.write(json.dumps({'id':id, 'error':str(e)}))
-                fout.write('\n')
+            train_result = './data/QALD/train-multilingual-4-9_rdflib_%s_result.jsonl' % dataset_mode
+            test_result = './data/QALD/test-multilingual-4-9_rdflib_%s_result.jsonl' % dataset_mode
 
-    while (True):
-        query = input('query:')
-
-        if query.startswith('Q:'):
-            query = query[2:]
-            print('begin query...')
-            try:
-                qres = g.query(query)
-                if qres.bindings != None:
-                    for binding in qres.bindings:
-                        for var in qres.vars:
-                            print('%s:\t%s\n' % (str(var), str(binding[var])))
-
-                elif qres.askAnswer != None:
-                    print(qres.askAnswer)
-
-            except Exception as e:
-                print(str(e))
-
-            print('end query...')
-        elif query == 'exit':
-            break
-
+            run_gold_query(qald_multilingual_train, train_result, train_unknown_list, type='rdflib', rdfgraph=g)
+            run_gold_query(qald_multilingual_test, test_result, test_unknown_list, type='rdflib', rdfgraph=g)

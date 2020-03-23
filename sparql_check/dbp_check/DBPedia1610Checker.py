@@ -1,6 +1,6 @@
-from SPARQLWrapper import SPARQLWrapper
+
 import json
-import time
+from sparql_check.Sparql_Execute_Utils import query_dbpedia
 from tqdm import tqdm
 import urllib.parse
 
@@ -15,29 +15,6 @@ class DBPediaResultChecker:
     NEW_ANS_DECREASED = 'NEW_ANS_DECREASED'
     OTHERS = 'OTHERS'
 
-
-    def query_dbpedia(self, query):
-        sparql = SPARQLWrapper("http://dbpedia.org/sparql")
-        sparql.setQuery(query)
-        sparql.setReturnFormat('json')
-
-
-        try:
-            results = sparql.query().convert()
-        except:
-            time.sleep(5)
-            try:
-                results = sparql.query().convert()
-            except Exception as e:
-                if str(e).find('urlopen error [WinError 10051]'):
-                    time.sleep(10)
-                    try:
-                        results = sparql.query().convert()
-                    except Exception as e:
-                        results = {'error':str(e)}
-
-        return results
-
         #for result in results["results"]["bindings"]:
         #    print(result["label"]["value"])
 
@@ -51,7 +28,7 @@ class DBPediaResultChecker:
             for q in pbar:
                 query = q['query']
                 if self.isValidQuery(query):
-                    result = self.query_dbpedia(query)
+                    result = query_dbpedia(query, "http://dbpedia.org/sparql")
 
                     result_dict = {}
                     result_dict['id'] = q['id']
