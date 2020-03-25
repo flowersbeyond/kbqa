@@ -1,5 +1,5 @@
 import json
-from sparql_check.local_check.Sparql_Utils import parse_triple_from_query_answer
+from utils.Sparql_Utils import parse_triple_from_query_answer
 
 RESULT_SAME = 'RESULT_SAME'
 QUERY_PARSE_ERROR = 'QUERY_PARSE_ERROR'

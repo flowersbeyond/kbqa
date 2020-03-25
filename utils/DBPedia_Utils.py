@@ -1,4 +1,4 @@
-from sparql_check.local_check.Rdf_Utils import unify_triple_item_format
+from utils.Rdf_Utils import unify_triple_item_format
 
 def parse_dbpedia_line(line):
 

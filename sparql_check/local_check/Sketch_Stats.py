@@ -1,5 +1,5 @@
-from sparql_check.local_check.Sparql_Utils import tokenize,extract_triples, extract_prefixes, unify_triple_item_format
-from sparql_check.local_check.Rdf_Utils import public_prefix
+from utils.Sparql_Utils import tokenize,extract_triples, extract_prefixes, unify_triple_item_format
+from utils.Rdf_Utils import public_prefix
 import json
 
 sparql_keywords = ['select', 'construct', 'ask', 'describe',

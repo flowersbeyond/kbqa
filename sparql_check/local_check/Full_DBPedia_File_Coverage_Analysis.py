@@ -1,6 +1,6 @@
 import json
-from sparql_check.local_check.Sparql_Utils import parse_triple_from_query_answer
-from sparql_check.local_check.DBPedia_Utils import parse_dbpedia_line
+from utils.Sparql_Utils import parse_triple_from_query_answer
+from utils.DBPedia_Utils import parse_dbpedia_line
 from os import listdir
 from os.path import isfile, join
 

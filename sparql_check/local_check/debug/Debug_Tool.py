@@ -1,4 +1,4 @@
-from sparql_check.local_check.DBPedia_Utils import parse_dbpedia_line
+from utils.DBPedia_Utils import parse_dbpedia_line
 
 '''
 extend_cover_triples_file = ''

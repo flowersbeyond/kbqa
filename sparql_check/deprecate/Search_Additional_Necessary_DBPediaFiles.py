@@ -4,8 +4,8 @@ from os.path import isfile, join
 from multiprocessing import Process
 import bz2
 import json
-from sparql_check.local_check.DBPedia_Utils import parse_dbpedia_line
-from sparql_check.local_check.Sparql_Utils import parse_triple_from_query_answer
+from utils.DBPedia_Utils import parse_dbpedia_line
+from utils.Sparql_Utils import parse_triple_from_query_answer
 
 def extract_still_not_covered_query_triples(
         data_file,

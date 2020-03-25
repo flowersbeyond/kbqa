@@ -1,9 +1,9 @@
 import json
 from tqdm import tqdm
 
-from sparql_check.Sparql_Execute_Utils import query_dbpedia
-from sparql_check.local_check.Rdf_Utils import public_prefix
-from sparql_check.local_check.Sparql_Utils import extract_prefixes
+from utils.Sparql_Execute_Utils import query_dbpedia
+from utils.Rdf_Utils import public_prefix
+from utils.Sparql_Utils import extract_prefixes
 from rdflib.graph import Graph
 
 def extract_id_query(data_file):

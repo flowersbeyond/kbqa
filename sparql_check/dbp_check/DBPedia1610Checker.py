@@ -1,6 +1,6 @@
 
 import json
-from sparql_check.Sparql_Execute_Utils import query_dbpedia
+from utils.Sparql_Execute_Utils import query_dbpedia
 from tqdm import tqdm
 import urllib.parse
 

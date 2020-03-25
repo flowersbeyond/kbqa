@@ -1,6 +1,6 @@
 import re
 import urllib.parse
-from sparql_check.local_check.Rdf_Utils import unify_triple_item_format, public_prefix
+from utils.Rdf_Utils import unify_triple_item_format, public_prefix
 
 def parse_triple_from_query_answer(query, answers):
     raw_triples = extract_triples(query)

@@ -2,7 +2,7 @@ from tqdm import tqdm
 from os import listdir
 from os.path import isfile, join
 
-from sparql_check.local_check.DBPedia_Utils import parse_dbpedia_line
+from utils.DBPedia_Utils import parse_dbpedia_line
 
 def extract_core_8_notcovered_triples(all_missing_triples_file):
     triples = set()

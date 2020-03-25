@@ -4,8 +4,8 @@ from os import listdir
 from os.path import isfile, join
 from tqdm import tqdm
 
-from sparql_check.local_check.Sparql_Utils import parse_triple_from_query_answer
-from sparql_check.local_check.DBPedia_Utils import parse_dbpedia_line
+from utils.Sparql_Utils import parse_triple_from_query_answer
+from utils.DBPedia_Utils import parse_dbpedia_line
 def extract_triple_id_map(file, idflag):
 
     triple_id_map = {}
