@@ -177,8 +177,15 @@ def get_all_entities_from_entity_linking_file(entity_linking_file, category_type
                     for entity in entity_split:
                         if entity not in category_type_entities:
                             entities[entity] = keyword
+            if len(entities) == 0:
+                all_entities[id] = {}
+                empty_entity_linking_count += 1
+                continue
+
             all_entities[id] = entities
             all_entity_count += len(entities)
+    print(entity_linking_file)
+    print('total_question_number:%d' % len(all_entities))
     print('empty entity linking number:%d' % empty_entity_linking_count)
     print('avg linked entity number:%f' % (all_entity_count/(len(all_entities) - empty_entity_linking_count)))
 
@@ -320,14 +327,14 @@ if __name__ == '__main__':
             category_type_entities.add(l.strip())
 
 
-    train_golden_cc_file = './data/core_chain/train_chain.json'
+    train_golden_cc_file = './data/core_chain/train_gold_chain.json'
     train_core_chains = {}
     with open(train_golden_cc_file, encoding='utf-8') as fin:
         train_core_chains_temp = json.load(fin)
         for id in train_core_chains_temp:
             train_core_chains[int(id)] = train_core_chains_temp[id]
 
-    test_golden_cc_file = './data/core_chain/test_chain.json'
+    test_golden_cc_file = './data/core_chain/test_gold_chain.json'
     test_core_chains = {}
     with open(test_golden_cc_file, encoding='utf-8') as fin:
         test_core_chains_temp = json.load(fin)
@@ -335,15 +342,35 @@ if __name__ == '__main__':
             test_core_chains[int(id)] = test_core_chains_temp[id]
 
 
-    train_entity_linking_file = './data/core_chain/train.en.label.BM25.top10.pk'
-    test_entity_linking_file = './data/core_chain/test.en.label.BM25.top10.pk'
+    entity_linking_dir = './data/core_chain/entity_linking/'
 
-    train_linked_entities = get_all_entities_from_entity_linking_file(train_entity_linking_file, category_type_entities)
-    test_linked_entities = get_all_entities_from_entity_linking_file(test_entity_linking_file, category_type_entities)
+    train_label_en_entity_linking_file = entity_linking_dir + '/train.en.label.BM25.top10.pk'
+    test_label_en_entity_linking_file = entity_linking_dir + '/test.en.label.BM25.top10.pk'
+    train_predict_en_zeroshot_entity_linking_file = entity_linking_dir + '/train.zeroshotpred.BM25.top10.pk'
+    test_predict_en_zeroshot_entity_linking_file = entity_linking_dir + '/test.zeroshotpred.BM25.top10.pk'
 
+    train_label_en_linked_entities = get_all_entities_from_entity_linking_file(train_label_en_entity_linking_file, category_type_entities)
+    test_label_en_linked_entities = get_all_entities_from_entity_linking_file(test_label_en_entity_linking_file, category_type_entities)
 
-    dbfile_output_1hop = './data/core_chain/train_1hop_closure.ttl'
-    dbfile_output_2hop = './data/core_chain/train_2hop_closure.ttl'
+    train_zeroshot_en_pred_linked_entities = get_all_entities_from_entity_linking_file(train_predict_en_zeroshot_entity_linking_file,
+                                                                                       category_type_entities)
+    test_zeroshot_en_pred_linked_entities = get_all_entities_from_entity_linking_file(test_predict_en_zeroshot_entity_linking_file,
+                                                                                      category_type_entities)
+
+    test_zeroshot_de_pred_linked_entity_tile = entity_linking_dir + '/test.de.zeroshotpred.BM25.top10.pk'
+
+    test_zeroshot_de_pred_linked_entities = get_all_entities_from_entity_linking_file(
+        test_zeroshot_de_pred_linked_entity_tile,
+        category_type_entities)
+    
+
+    test_zeroshot_ru_pred_linked_entity_tile = entity_linking_dir + '/test.ru.zeroshotpred.BM25.top10.pk'
+    test_zeroshot_ru_pred_linked_entities = get_all_entities_from_entity_linking_file(
+        test_zeroshot_ru_pred_linked_entity_tile,
+        category_type_entities)
+
+    dbfile_output_1hop = './data/core_chain/1hop_closure.ttl'
+    dbfile_output_2hop = './data/core_chain/2hop_closure.ttl'
 
     do_slice = False
     if do_slice:
@@ -364,14 +391,34 @@ if __name__ == '__main__':
         topic_entities.update(train_qg_topic_entities)
         topic_entities.update(test_qg_topic_entities)
 
-        for id in train_linked_entities:
+        for id in train_label_en_linked_entities:
             if id in train_core_chains:
-                entities = train_linked_entities[id].keys()
+                entities = train_label_en_linked_entities[id].keys()
                 topic_entities.update(entities)
 
-        for id in test_linked_entities:
+        for id in test_label_en_linked_entities:
             if id in test_core_chains:
-                entities = test_linked_entities[id].keys()
+                entities = test_label_en_linked_entities[id].keys()
+                topic_entities.update(entities)
+
+        for id in train_zeroshot_en_pred_linked_entities:
+            if id in train_core_chains:
+                entities = train_zeroshot_en_pred_linked_entities[id].keys()
+                topic_entities.update(entities)
+
+        for id in test_zeroshot_en_pred_linked_entities:
+            if id in test_core_chains:
+                entities = test_zeroshot_en_pred_linked_entities[id].keys()
+                topic_entities.update(entities)
+
+        for id in test_zeroshot_de_pred_linked_entities:
+            if id in test_core_chains:
+                entities = test_zeroshot_de_pred_linked_entities[id].keys()
+                topic_entities.update(entities)
+
+        for id in test_zeroshot_ru_pred_linked_entities:
+            if id in test_core_chains:
+                entities = test_zeroshot_ru_pred_linked_entities[id].keys()
                 topic_entities.update(entities)
 
         dbfiles = [(dbfile_core_dir + f) for f in listdir(dbfile_core_dir) if
@@ -409,13 +456,32 @@ if __name__ == '__main__':
     
     dbfiles = [dbfile_output_2hop]
     graph.load_full_graph(dbfiles)
-    #graph.dump_to_json('./data/core_chain/train_2hop_closure.json')
-    #graph.load_from_json('./data/core_chain/train_2hop_closure.json')
+    #graph.dump_to_json('./data/core_chain/2hop_closure.json')
+    #graph.load_from_json('./data/core_chain/2hop_closure.json')
 
-    train_output_file = './data/core_chain/train_candidate_core_chains.jsonl'
-    generate_core_chain_candidate_stats(train_core_chains, train_linked_entities, graph,
-                                        category_type_entities, train_output_file)
     
-    test_output_file = './data/core_chain/test_candidate_core_chains.jsonl'
-    generate_core_chain_candidate_stats(test_core_chains, test_linked_entities, graph, category_type_entities,
-                                        test_output_file)
+    train_label_en_output_file = './data/core_chain/candidates/train_label_en.jsonl'
+    generate_core_chain_candidate_stats(train_core_chains, train_label_en_linked_entities, graph,
+                                        category_type_entities, train_label_en_output_file)
+    
+    test_label_en_output_file = './data/core_chain/candidates/test_label_en.jsonl'
+    generate_core_chain_candidate_stats(test_core_chains, test_label_en_linked_entities, graph, category_type_entities,
+                                        test_label_en_output_file)
+
+    train_zeroshot_pred_en_output_file = './data/core_chain/candidates/train_zeroshot_pred_en.jsonl'
+    generate_core_chain_candidate_stats(train_core_chains, train_zeroshot_en_pred_linked_entities, graph,
+                                        category_type_entities, train_zeroshot_pred_en_output_file)
+
+    test_zeroshot_en_pred_output_file = './data/core_chain/candidates/test_zeroshot_pred_en.jsonl'
+    generate_core_chain_candidate_stats(test_core_chains, test_zeroshot_en_pred_linked_entities, graph, category_type_entities,
+                                        test_zeroshot_en_pred_output_file)
+    
+    test_zeroshot_ru_pred_output_file = './data/core_chain/candidates/test_zeroshot_pred_ru.jsonl'
+    generate_core_chain_candidate_stats(test_core_chains, test_zeroshot_ru_pred_linked_entities, graph,
+                                        category_type_entities,
+                                        test_zeroshot_ru_pred_output_file)
+
+    test_zeroshot_de_pred_output_file = './data/core_chain/candidates/test_zeroshot_pred_de.jsonl'
+    generate_core_chain_candidate_stats(test_core_chains, test_zeroshot_de_pred_linked_entities, graph,
+                                        category_type_entities,
+                                        test_zeroshot_de_pred_output_file)
