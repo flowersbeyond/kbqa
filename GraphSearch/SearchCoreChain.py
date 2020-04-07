@@ -90,11 +90,11 @@ def pattern_match(core_chain, full_graph):
         pred1 = core_chain[1]
         if core_chain[0] == 'VAR1':
             pairs = full_graph.search_1hop_subj(core_chain[2])
-            if pred1 in var1_set:
+            if pred1 in pairs:
                 var1_set = set(pairs[pred1])
         else:
             pairs = full_graph.search_1hop_obj(core_chain[0])
-            if pred1 in var1_set:
+            if pred1 in pairs:
                 var1_set = set(pairs[pred1])
 
         var2_set = set()
