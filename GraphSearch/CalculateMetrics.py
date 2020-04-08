@@ -41,7 +41,7 @@ def compute_metrics(data_file, pred_file, ranking_result):
             end_index = min(len(items), 20)
             fout.write(json.dumps({'id':id, 'items':items[0:end_index]}))
 
-    thres_configs = ['top10', 'top20', 'top50', 'top100','top1000','top2000','thres_30','thres_60', 'thres_80']
+    thres_configs = ['top10', 'top20', 'top50', 'top100','top1000','top2000','thres_10','thres_30','thres_60', 'thres_80']
     stat_table = {}
     for config in thres_configs:
         stat_table[config] = {'rec':0.0, 'qrec':0.0, 'prec':0.0, 'f1':0.0, 'two_hop': 0}
@@ -55,6 +55,7 @@ def compute_metrics(data_file, pred_file, ranking_result):
         for config in thres_configs:
             stat_table_item[config] = {'rec':0.0, 'qrec':0.0, 'prec':0.0, 'f1':0.0, 'two_hop': 0}
 
+        thres_10_count = -1
         thres_30_count = -1
         thres_60_count = -1
         thres_80_count = -1
@@ -70,8 +71,10 @@ def compute_metrics(data_file, pred_file, ranking_result):
                 thres_60_count = i
             if pred < 0.3 and thres_30_count == -1:
                 thres_30_count = i
+            if pred < 0.1 and thres_10_count == -1:
+                thres_10_count = i
 
-            if item['is_gold'] == 1:
+            if item['is_gold'] == 1:# or item['f1'] >= 0.99999:
                 total_gold_count += 1
                 if item['chain_str'].find(' , ') >= 0:
                     is_two_hop = True
@@ -118,6 +121,11 @@ def compute_metrics(data_file, pred_file, ranking_result):
                     stat_table_item['thres_30']['prec'] += 1
                     stat_table_item['thres_30']['two_hop'] += 1 if is_two_hop else 0
 
+                if pred >= 0.1:
+                    stat_table_item['thres_10']['rec'] += 1
+                    stat_table_item['thres_10']['prec'] += 1
+                    stat_table_item['thres_10']['two_hop'] += 1 if is_two_hop else 0
+
         if total_gold_count != 0:
             non_zero_gold_question_count += 1
             for config in thres_configs:
@@ -127,7 +135,7 @@ def compute_metrics(data_file, pred_file, ranking_result):
                 else:
                     stat_table_item[config]['rec'] = 0
             prec_base = {'top10':10, 'top20':20, 'top50':50, 'top100':100, 'top1000':1000,'top2000':2000,
-                         'thres_80':thres_80_count, 'thres_60':thres_60_count, 'thres_30':thres_30_count}
+                         'thres_80':thres_80_count, 'thres_60':thres_60_count, 'thres_30':thres_30_count, 'thres_10': thres_10_count}
             for config in thres_configs:
                 if prec_base[config] != 0:
                     stat_table_item[config]['prec'] /= prec_base[config]
@@ -208,9 +216,9 @@ def compute_meta_metrics(data_file):
 
 if __name__ == '__main__':
     #configs = ['10label', '10zeroshot','20label', '20zeroshot']
-    configs = ['10zeroshot_enrich']
+    configs = ['10zeroshot_enrich_dflimit']
     task_names = ['dev','test_data_label', 'test_data_en', 'test_data_ru', 'test_data_de']
-    #task_names = ['test_data_en']
+    #task_names = ['dev','test_data_en']
     meta_metric_file = './data/core_chain/trainingdata/meta_metrics.txt'
 
     full_meta_metric_table = {}
@@ -242,7 +250,7 @@ if __name__ == '__main__':
             fout.write(data_line_str)
 
 
-    thres_configs = ['top10', 'top20', 'top50', 'top100', 'top1000','top2000','thres_30', 'thres_60', 'thres_80']
+    thres_configs = ['top10', 'top20', 'top50', 'top100', 'top1000','top2000', 'thres_80', 'thres_60','thres_30','thres_10']
     for config in configs:
         dir = './data/core_chain/trainingdata/' + config + '/'
         full_stat_table = {}

@@ -37,7 +37,9 @@ def prepare_train_test_data(question_file, candidate_core_chains_file, question_
                 for candidate in candidates:
                     chain = candidate['core_chain']
                     keyword = candidate['keyword']
-                    chain_str = format_chain_to_str(chain, keyword, label_dict,entity_df,pred_df)
+                    category_info = candidate['category_info']
+
+                    chain_str = format_chain_to_str(chain, category_info, keyword, label_dict,entity_df,pred_df)
                     f1 = candidate['max_f1']
                     is_gold = candidate['is_gold']
 
@@ -50,58 +52,80 @@ def prepare_train_test_data(question_file, candidate_core_chains_file, question_
                                                'chain_str': chain_str,'chain':chain,
                                                'f1': f1, 'is_gold': is_gold}) + '\n')
 
-def format_chain_to_str(chain, keyword, label_dict, ent_df, pred_df):
+def format_chain_to_str(chain, category_info, keyword, label_dict, ent_df, pred_df):
     str = ''
     for i in range(0, len(chain)):
         item = chain[i]
-        if item == 'VAR':
-            item = 'variable'
-        elif item in ['VAR1', 'VAR2']:
-            item = item.replace('VAR', 'variable ')
+        if item in ['VAR', 'VAR1', 'VAR2']:
+            category_stats = category_info[item]
+            item_str = 'variable' if item != 'VAR1' else 'inter-variable'
+
+            for category in category_stats:
+                ratio = int(category_stats[category] * 100)
+                if ratio == 0:
+                    continue
+                if category == 'uncovered':
+                    category = 'entity'
+                item_str += ('#%s#%d' % (category, ratio))
+
         elif item.startswith('<') and item.endswith('>'):
+            category_str = ''
+            if item in category_info:
+                category_stats = category_info[item]
+                for category in category_stats:
+                    ratio = int(category_stats[category] * 100)
+                    if ratio == 0:
+                        continue
+                    if category == 'uncovered':
+                        category = 'entity'
+                    category_str += ('#%s#%d' % (category, ratio))
+
+
             label = ''
             if item in label_dict:
                 label = label_dict[item]
 
             item = item[1:-1]
-            prefix_tokens = tokenize(item)
+            suffix = item[max(item.rfind('/'), item.rfind('#'), item.rfind(':')) + 1:]
+            prefix = item[0: max(item.rfind('/'), item.rfind('#'), item.rfind(':'))]
+
+            prefix_tokens = tokenize(prefix)
+
             if i in [0, 2, 3, 5]:
                 df_dict = ent_df
             else:
                 df_dict = pred_df
 
-            token_dfs = set()
+            min_df_token = ''
+            min_df = 1000000000
+
             for token in prefix_tokens:
                 if token in df_dict:
-                    token_dfs.add((token,df_dict[token]))
-            token_dfs = list(token_dfs)
-            token_dfs.sort(key=lambda x:x[1])
-            token_dfs = token_dfs[0:min(3,len(token_dfs))]
+                    token_df = df_dict[token]
+                    if token_df < min_df and token_df >= 50:
+                        min_df_token = token
+                        min_df = df_dict[token]
 
-            filtered_tokens = set([item[0] for item in token_dfs if item[1] <= 300])
-
-            if len(filtered_tokens) == 0:
-                filtered_tokens = set(token_dfs[0][0])
-            path_tokens = []
-            for token in prefix_tokens:
-                if token in filtered_tokens:
-                    path_tokens.append(token)
-                    filtered_tokens.remove(token)
-                if len(filtered_tokens) == 0:
-                    break
-
-            item = '/'.join(path_tokens)
+            item_str = ''
+            if min_df_token != '':
+                item_str += min_df_token + '/'
             if label != '':
-                item += ':' + label
-            item = '<' + item + '>'
+                item_str += label
+            else:
+                item_str += suffix
+
+            item_str = '<' + item_str + '>'
+
 
             if i in [0,2,3,5]:
-                item += ':' + keyword
+                item_str = keyword + ':' + item_str
+            if category_str != '':
+                item_str += category_str
 
 
         if i == 3:
             str = str + ', '
-        str = str + item + ' '
+        str = str + item_str + ' '
 
     return str.strip().strip(',')
 
@@ -197,7 +221,7 @@ if __name__ == '__main__':
 
     for sample_rate in sample_rates:
         label_dir = training_data_dir + str(int(sample_rate * 100))+ 'label/'
-        zeroshot_dir = training_data_dir + str(int(sample_rate * 100)) + 'zeroshot_enrich_dflimit/'
+        zeroshot_dir = training_data_dir + str(int(sample_rate * 100)) + 'zeroshot_enrich_add_category_info/'
 
         '''
         train_label_en_data = label_dir + 'train_data.jsonl'

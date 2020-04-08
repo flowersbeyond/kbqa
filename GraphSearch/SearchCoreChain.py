@@ -6,65 +6,124 @@ from os.path import isfile, join
 from tqdm import tqdm
 import pickle
 
-def search_core_chain(topic_entity, full_graph, category_type_entity_list, do_2hop=True):
+def search_core_chain(topic_entity, full_graph, category_type_entity_list, all_linked_entities, do_2hop=True):
     if topic_entity in category_type_entity_list:
         return {}
 
     dbgraph = full_graph
-    one_hops_objs = dbgraph.search_1hop_obj(topic_entity)
-    one_hop_subjs = dbgraph.search_1hop_subj(topic_entity)
-
     core_chains = {}
 
+    topic_entity_category_info = get_category_info([topic_entity], graph)
+
+    one_hops_objs = dbgraph.search_1hop_obj(topic_entity)
     for pred in one_hops_objs:
-        objs = one_hops_objs[pred]
-        core_chains[(topic_entity, pred,'VAR')] = set(objs)
+        objs = set(one_hops_objs[pred])
+        one_hop_category_info = get_category_info(objs, graph)
+        core_chains[(topic_entity, pred, 'VAR')] = {'answers':objs,
+                                                    'category_info':{
+                                                        topic_entity:topic_entity_category_info,
+                                                        'VAR':one_hop_category_info}}
 
         if do_2hop:
+
+            two_hop_chains = {}
+            one_hop_as_two_hop_subjs = {}
+            one_hop_as_two_hop_objs = {}
             for obj in objs:
+                if obj in all_linked_entities:
+                    continue
                 if obj.startswith('<') and obj.endswith('>'):
                     second_hops_objs = dbgraph.search_1hop_obj(obj)
                     for pred2 in second_hops_objs:
                         obj2s = second_hops_objs[pred2]
                         chain_pattern = (topic_entity, pred, 'VAR1', 'VAR1', pred2, 'VAR2')
-                        if chain_pattern not in core_chains:
-                            core_chains[chain_pattern] = set()
 
-                        core_chains[chain_pattern].update(set(obj2s))
+                        if chain_pattern not in two_hop_chains:
+                            two_hop_chains[chain_pattern] = set()
+                        two_hop_chains[chain_pattern].update(set(obj2s))
+
+                        if pred2 not in one_hop_as_two_hop_subjs:
+                            one_hop_as_two_hop_subjs[pred2] = set()
+                        one_hop_as_two_hop_subjs[pred2].add(obj)
 
                     if obj not in category_type_entity_list:
                         second_hop_subjs = dbgraph.search_1hop_subj(obj)
                         for pred2 in second_hop_subjs:
                             subj2s = second_hop_subjs[pred2]
                             chain_pattern = (topic_entity, pred, 'VAR1', 'VAR2', pred2, 'VAR1')
-                            if chain_pattern not in core_chains:
-                                core_chains[chain_pattern] = set()
-                            core_chains[chain_pattern].update(set(subj2s))
+                            if chain_pattern not in two_hop_chains:
+                                two_hop_chains[chain_pattern] = set()
+                            two_hop_chains[chain_pattern].update(set(subj2s))
 
+                            if pred2 not in one_hop_as_two_hop_objs:
+                                one_hop_as_two_hop_objs[pred2] = set()
+                            one_hop_as_two_hop_objs[pred2].add(obj)
+
+            for chain in two_hop_chains:
+                answers = two_hop_chains[chain]
+                two_hop_category_info = get_category_info(answers, graph)
+                pred2 = chain[4]
+                if chain[3] == 'VAR1':
+                    var1_category_info = get_category_info(one_hop_as_two_hop_subjs[pred2], graph)
+                else:
+                    var1_category_info = get_category_info(one_hop_as_two_hop_objs[pred2], graph)
+
+                core_chains[chain] = {'answers':answers, 'category_info':{
+                    topic_entity:topic_entity_category_info, 'VAR1':var1_category_info, 'VAR2':two_hop_category_info}}
+
+
+    one_hop_subjs = dbgraph.search_1hop_subj(topic_entity)
     for pred in one_hop_subjs:
-        subjs = one_hop_subjs[pred]
-        core_chains[('VAR', pred, topic_entity)] = set(subjs)
+        subjs = set(one_hop_subjs[pred])
+        one_hop_category_info = get_category_info(subjs, graph)
+        core_chains[('VAR', pred, topic_entity)] = {'answers': subjs, 'category_info': {
+            topic_entity:topic_entity_category_info, 'VAR': one_hop_category_info}}
 
         if do_2hop:
+            two_hop_chains = {}
+            one_hop_as_two_hop_subjs = {}
+            one_hop_as_two_hop_objs = {}
             for subj in subjs:
+                if subj in all_linked_entities:
+                    continue
                 if subj.startswith('<') and subj.endswith('>'):
                     second_hops_objs = dbgraph.search_1hop_obj(subj)
                     for pred2 in second_hops_objs:
                         obj2s = second_hops_objs[pred2]
                         chain_pattern = ('VAR1', pred, topic_entity, 'VAR1', pred2, 'VAR2')
-                        if chain_pattern not in core_chains:
-                            core_chains[chain_pattern] = set()
+                        if chain_pattern not in two_hop_chains:
+                            two_hop_chains[chain_pattern] = set()
+                        two_hop_chains[chain_pattern].update(set(obj2s))
 
-                        core_chains[chain_pattern].update(set(obj2s))
+                        if pred2 not in one_hop_as_two_hop_subjs:
+                            one_hop_as_two_hop_subjs[pred2] = set()
+                        one_hop_as_two_hop_subjs[pred2].add(subj)
 
                     if subj not in category_type_entity_list:
                         second_hop_subjs = dbgraph.search_1hop_subj(subj)
                         for pred2 in second_hop_subjs:
                             subj2s = second_hop_subjs[pred2]
                             chain_pattern = ('VAR1', pred, topic_entity, 'VAR2', pred2, 'VAR1')
-                            if chain_pattern not in core_chains:
-                                core_chains[chain_pattern] = set()
-                            core_chains[chain_pattern].update(set(subj2s))
+                            if chain_pattern not in two_hop_chains:
+                                two_hop_chains[chain_pattern] = set()
+                            two_hop_chains[chain_pattern].update(set(subj2s))
+
+                            if pred2 not in one_hop_as_two_hop_objs:
+                                one_hop_as_two_hop_objs[pred2] = set()
+                            one_hop_as_two_hop_objs[pred2].add(subj)
+
+            for chain in two_hop_chains:
+                answers = two_hop_chains[chain]
+                pred2 = chain[4]
+                if chain[3] == 'VAR1':
+                    var1_category_info = get_category_info(one_hop_as_two_hop_subjs[pred2], graph)
+                else:
+                    var1_category_info = get_category_info(one_hop_as_two_hop_objs[pred2], graph)
+
+                two_hop_category_info = get_category_info(answers, graph)
+                core_chains[chain] = {'answers': answers, 'category_info': {topic_entity:topic_entity_category_info,
+                                                                            'VAR1': var1_category_info,
+                                                                            'VAR2': two_hop_category_info}}
 
 
     return core_chains
@@ -238,17 +297,19 @@ def generate_core_chain_candidate_stats(
 
         cover_atleast_one = False
         cover_topic_entity = False
-        candidate_entites = gen_linked_entities[id]
-        for entity in candidate_entites:
+        candidate_entities = gen_linked_entities[id]
+        for entity in candidate_entities:
             if entity in category_type_entities:
                 continue
             if entity in golden_topic_entities_id:
                 cover_topic_entity = True
 
             # core chain candidate: dict:(tuple) -> set()
-            core_chain_candidates = search_core_chain(entity, graph, category_type_entities, do_2hop=True)
+            core_chain_candidates = search_core_chain(entity, graph, category_type_entities, candidate_entities, do_2hop=True)
             for candidate in core_chain_candidates:
-                candidate_answer = core_chain_candidates[candidate]
+
+                candidate_answer = core_chain_candidates[candidate]['answers']
+
                 candidate_is_gold = False
                 if candidate in golden_core_chain_answer_id:
                     candidate_is_gold = True
@@ -258,17 +319,19 @@ def generate_core_chain_candidate_stats(
                 reference_gold_cc = None
                 for golden_chain in golden_core_chain_answer_id:
                     golden_answer = golden_core_chain_answer_id[golden_chain]
-                    f1 = get_f1_score(candidate_answer, golden_answer)
+                    f1 = get_f1_score(candidate_answer, golden_answer)###TODO:::
                     if f1 > max_f1:
                         max_f1 = f1
                         reference_gold_cc = golden_chain
 
-                if max_f1 > 0.8 and max_f1 < 0.999999:
+                if max_f1 > 0.9 and not candidate_is_gold:
                     high_f1_non_gold_count += 1
 
-                keyword = candidate_entites[entity]
+                keyword = candidate_entities[entity]
+                category_info = core_chain_candidates[candidate]['category_info']
+
                 candidate_core_chain_stat[id].append(
-                    {'core_chain': list(candidate), 'keyword': keyword, 'max_f1': max_f1,
+                    {'core_chain': list(candidate), 'keyword': keyword, 'category_info':category_info, 'max_f1': max_f1,
                      'is_gold': 1 if candidate_is_gold else 0,
                      'reference': list(reference_gold_cc) if reference_gold_cc != None else ''})
 
@@ -313,6 +376,45 @@ def generate_core_chain_candidate_stats(
         for id in candidate_core_chain_stat:
             item = candidate_core_chain_stat[id]
             fout.write(json.dumps({'id':id, 'candidates':item}) + '\n')
+
+
+def get_category_info(entities, graph):
+
+    category_type_stat = {}
+    mono_types = []
+    for entity in entities:
+        if entity in graph.category_type_name_map:
+            entity_type = graph.category_type_name_map[entity]
+
+            if entity_type not in category_type_stat:
+                category_type_stat[entity_type] = 1
+            else:
+                category_type_stat[entity_type] += 1
+
+        elif entity in graph.subj_obj_name_map:
+            entity_type = graph.subj_obj_name_map[entity]
+            mono_types.append(entity_type)
+
+
+    if len(category_type_stat) != 0:
+        sorted_stat = sorted(category_type_stat.items(), key=lambda item:item[1], reverse=True)
+        sorted_stat.extend([(mono_type, 1) for mono_type in mono_types])
+        top_2 = sorted_stat[0:min(2,len(sorted_stat))]
+        covered_count = 0
+        final_stat = {}
+        for (entity_type, count) in top_2:
+            final_stat[entity_type] = count / len(entities)
+            covered_count += count
+
+        final_stat['uncovered'] = 1 - covered_count / len(entities)
+
+        return final_stat
+    else:
+        final_stat = {mono_types[i]:1/len(entities) for i in range(0,min(2,len(mono_types)))}
+        final_stat['uncovered'] = 1 - len(final_stat) / len(entities)
+
+        return final_stat
+
 
 
 if __name__ == '__main__':
@@ -453,13 +555,18 @@ if __name__ == '__main__':
 
 
     graph = DBGraph()
-    
-    dbfiles = [dbfile_output_2hop]
-    graph.load_full_graph(dbfiles)
-    #graph.dump_to_json('./data/core_chain/2hop_closure.json')
-    #graph.load_from_json('./data/core_chain/2hop_closure.json')
+    load_from_file = False
+    if load_from_file:
+        dbfiles = [dbfile_output_2hop]
+        category_type_dict_file = dbfile_core_dir + 'category_type/category_type_label_map.json'
+        graph.load_full_graph(dbfiles, category_type_dict_file)
+        graph.dump_to_json('./data/core_chain/2hop_closure.json')
+    else:
+        graph.load_from_json('./data/core_chain/2hop_closure.json')
+        #graph.debug_category_type_parsing('./data/core_chain/category_map_name_debug.txt')
 
-    
+
+
     train_label_en_output_file = './data/core_chain/candidates/train_label_en.jsonl'
     generate_core_chain_candidate_stats(train_core_chains, train_label_en_linked_entities, graph,
                                         category_type_entities, train_label_en_output_file)
@@ -467,7 +574,7 @@ if __name__ == '__main__':
     test_label_en_output_file = './data/core_chain/candidates/test_label_en.jsonl'
     generate_core_chain_candidate_stats(test_core_chains, test_label_en_linked_entities, graph, category_type_entities,
                                         test_label_en_output_file)
-
+    
     train_zeroshot_pred_en_output_file = './data/core_chain/candidates/train_zeroshot_pred_en.jsonl'
     generate_core_chain_candidate_stats(train_core_chains, train_zeroshot_en_pred_linked_entities, graph,
                                         category_type_entities, train_zeroshot_pred_en_output_file)
@@ -485,3 +592,4 @@ if __name__ == '__main__':
     generate_core_chain_candidate_stats(test_core_chains, test_zeroshot_de_pred_linked_entities, graph,
                                         category_type_entities,
                                         test_zeroshot_de_pred_output_file)
+

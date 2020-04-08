@@ -17,18 +17,15 @@ def unify_triple_item_format(item):
     item = item.strip()
     if item.startswith('<'):
         item = item[0: item.rfind('>') + 1]
-    elif item.startswith('\"'):
-        pos = 1
-        token = ''
-        while item[pos] != '\"':
-            token += item[pos]
-            pos += 1
-        item = token
-    elif item.startswith('\''):
-        pos = 1
-        token = ''
-        while item[pos] != '\'':
-            token += item[pos]
-            pos += 1
-        item = token
+    else:
+        if item.endswith('>'):
+            if item.rfind('^^') >= 0:
+                item = item[0:item.rfind('^^')]
+
+        else:
+            if item.rfind('@') >= 0:
+                item = item[0:item.rfind('@')]
+
+        item = item.strip('\'').strip('\"').strip()
+
     return item
