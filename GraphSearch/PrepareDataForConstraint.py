@@ -15,6 +15,14 @@ def search_var_values(core_chain, full_graph):
             pairs = full_graph.search_1hop_obj(core_chain[0])
             if core_chain[1] in pairs:
                 result = set(pairs[core_chain[1]])
+                result_cleaned = set()
+                for item in result:
+                    if item.startswith('<') and item.endswith('>'):
+                        result_cleaned.add(item)
+                    else:
+                        item = item[0:item.rfind('###')]
+                        result_cleaned.add(item)
+                result = result_cleaned
 
             return list(result)
         else:
@@ -35,6 +43,15 @@ def search_var_values(core_chain, full_graph):
             pairs = full_graph.search_1hop_obj(core_chain[0])
             if pred1 in pairs:
                 var1_set = set(pairs[pred1])
+                var1_set_cleaned = set()
+                for item in var1_set:
+                    if item.startswith('<') and item.endswith('>'):
+                        var1_set_cleaned.add(item)
+                    else:
+                        item = item[0:item.rfind('###')]
+                        var1_set_cleaned.add(item)
+                var1_set = var1_set_cleaned
+
 
         var2_set = {}
         pred2 = core_chain[4]
@@ -46,7 +63,16 @@ def search_var_values(core_chain, full_graph):
             else:
                 pairs = full_graph.search_1hop_obj(var1)
                 if pred2 in pairs:
-                    var2_set[var1] =list(pairs[pred2])
+                    var2_set_values = list(pairs[pred2])
+                    var2_set_cleaned = set()
+                    for item in var2_set_values:
+                        if item.startswith('<') and item.endswith('>'):
+                            var2_set_cleaned.add(item)
+                        else:
+                            item = item[0:item.rfind('###')]
+                            var2_set_cleaned.add(item)
+                    var2_set_values = var2_set_cleaned
+                    var2_set[var1] = list(var2_set_values)
 
         return var2_set
 
@@ -75,17 +101,15 @@ def retrieve_top_candidates(data_file, pred_file, ranking_result, rank_number, f
         id = data['id']
         if id not in questions:
             questions[id] = []
-        questions[id].append({'question':data['question'],
-                                               'chain_str': data['chain_str'],'chain':data['chain'],
-                                               'f1': data['f1'], 'is_gold': data['is_gold'], 'pred': data['pred']})
+        questions[id].append({'question':data['question'], 'chain':data['chain'],
+                                'f1': data['f1'], 'is_gold': data['is_gold'], 'pred': data['pred']})
 
-    for id in questions:
-        questions[id].sort(key=lambda item: item['pred'], reverse=True)
 
     with open(ranking_result, encoding='utf-8', mode='w') as fout:
         pbar = tqdm(questions)
         for id in pbar:
             items = questions[id]
+            items.sort(key=lambda item: item['pred'], reverse=True)
             end_index = min(len(items), rank_number)
             items = items[0:end_index]
             if full_graph != None:
@@ -102,12 +126,10 @@ def retrieve_top_candidates(data_file, pred_file, ranking_result, rank_number, f
 
 if __name__ == '__main__':
     graph = DBGraph()
-    dbfile_output_2hop = './data/core_chain/2hop_closure.ttl'
-    dbfiles = [dbfile_output_2hop]
-    graph.load_full_graph(dbfiles)
-    configs = ['10zeroshot']
-    #task_names = ['train_data_all','dev','test_data_label', 'test_data_en', 'test_data_ru', 'test_data_de']
-    task_names = ['train_data_all', 'test_data_en']
+    graph.load_from_json('./data/core_chain/2hop_closure.json')
+
+    configs = ['10zeroshot_enrich_add_category_info']
+    task_names = ['train_data_all','test_data_en', 'test_data_ru', 'test_data_de']
 
     for task in task_names:
         dir = './data/core_chain/trainingdata/' + configs[0] + '/'
@@ -117,5 +139,5 @@ if __name__ == '__main__':
             data_file = dir + task + '.jsonl'
         pred_file = dir + task + '_results_detail.txt'
 
-        ranking_result = dir + 'top100/' + task + '.jsonl'
-        retrieve_top_candidates(data_file, pred_file, ranking_result, rank_number=100, full_graph=graph)
+        ranking_result = dir + 'top50/' + task + '.jsonl'
+        retrieve_top_candidates(data_file, pred_file, ranking_result, rank_number=50, full_graph=graph)
