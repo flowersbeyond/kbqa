@@ -74,7 +74,7 @@ def compute_metrics(data_file, pred_file, ranking_result):
             if pred < 0.1 and thres_10_count == -1:
                 thres_10_count = i
 
-            if item['is_gold'] == 1:# or item['f1'] >= 0.99999:
+            if item['is_gold'] == 1: #or item['f1'] >= 0.99999:
                 total_gold_count += 1
                 if item['chain_str'].find(' , ') >= 0:
                     is_two_hop = True
@@ -216,7 +216,7 @@ def compute_meta_metrics(data_file):
 
 if __name__ == '__main__':
     #configs = ['10label', '10zeroshot','20label', '20zeroshot']
-    configs = ['10zeroshot_enrich_dflimit']
+    configs = ['10zeroshot_enrich_add_category_info']
     task_names = ['dev','test_data_label', 'test_data_en', 'test_data_ru', 'test_data_de']
     #task_names = ['dev','test_data_en']
     meta_metric_file = './data/core_chain/trainingdata/meta_metrics.txt'
