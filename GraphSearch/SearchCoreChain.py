@@ -8,7 +8,7 @@ import pickle
 
 def search_core_chain(topic_entity, full_graph, category_type_entity_list, all_linked_entities, do_2hop=True):
     if topic_entity in category_type_entity_list:
-        return {}
+        do_2hop = False
 
     dbgraph = full_graph
     core_chains = {}
@@ -31,6 +31,8 @@ def search_core_chain(topic_entity, full_graph, category_type_entity_list, all_l
             one_hop_as_two_hop_objs = {}
             for obj in objs:
                 if obj in all_linked_entities:
+                    continue
+                if obj in category_type_entities:
                     continue
                 if obj.startswith('<') and obj.endswith('>'):
                     second_hops_objs = dbgraph.search_1hop_obj(obj)
@@ -85,6 +87,8 @@ def search_core_chain(topic_entity, full_graph, category_type_entity_list, all_l
             one_hop_as_two_hop_objs = {}
             for subj in subjs:
                 if subj in all_linked_entities:
+                    continue
+                if subj in category_type_entities:
                     continue
                 if subj.startswith('<') and subj.endswith('>'):
                     second_hops_objs = dbgraph.search_1hop_obj(subj)
@@ -214,7 +218,7 @@ def parse_golden_answer(result):
         values.add(str(result['boolean']).lower())
         return values
 
-def get_all_entities_from_entity_linking_file(entity_linking_file, category_type_entities):
+def get_all_entities_from_entity_linking_file(entity_linking_file):
     all_entities = {}
     all_entity_count = 0
     empty_entity_linking_count = 0
@@ -234,8 +238,7 @@ def get_all_entities_from_entity_linking_file(entity_linking_file, category_type
                     entity_str = item[1]
                     entity_split = entity_str.split(' ')
                     for entity in entity_split:
-                        if entity not in category_type_entities:
-                            entities[entity] = keyword
+                        entities[entity] = keyword
             if len(entities) == 0:
                 all_entities[id] = {}
                 empty_entity_linking_count += 1
@@ -451,25 +454,25 @@ if __name__ == '__main__':
     train_predict_en_zeroshot_entity_linking_file = entity_linking_dir + '/train.zeroshotpred.BM25.top10.pk'
     test_predict_en_zeroshot_entity_linking_file = entity_linking_dir + '/test.zeroshotpred.BM25.top10.pk'
 
-    train_label_en_linked_entities = get_all_entities_from_entity_linking_file(train_label_en_entity_linking_file, category_type_entities)
-    test_label_en_linked_entities = get_all_entities_from_entity_linking_file(test_label_en_entity_linking_file, category_type_entities)
+    train_label_en_linked_entities = get_all_entities_from_entity_linking_file(train_label_en_entity_linking_file)
+    test_label_en_linked_entities = get_all_entities_from_entity_linking_file(test_label_en_entity_linking_file)
 
-    train_zeroshot_en_pred_linked_entities = get_all_entities_from_entity_linking_file(train_predict_en_zeroshot_entity_linking_file,
-                                                                                       category_type_entities)
-    test_zeroshot_en_pred_linked_entities = get_all_entities_from_entity_linking_file(test_predict_en_zeroshot_entity_linking_file,
-                                                                                      category_type_entities)
+    train_zeroshot_en_pred_linked_entities = get_all_entities_from_entity_linking_file(train_predict_en_zeroshot_entity_linking_file)
+    test_zeroshot_en_pred_linked_entities = get_all_entities_from_entity_linking_file(test_predict_en_zeroshot_entity_linking_file)
 
     test_zeroshot_de_pred_linked_entity_tile = entity_linking_dir + '/test.de.zeroshotpred.BM25.top10.pk'
 
     test_zeroshot_de_pred_linked_entities = get_all_entities_from_entity_linking_file(
-        test_zeroshot_de_pred_linked_entity_tile,
-        category_type_entities)
+        test_zeroshot_de_pred_linked_entity_tile)
     
 
     test_zeroshot_ru_pred_linked_entity_tile = entity_linking_dir + '/test.ru.zeroshotpred.BM25.top10.pk'
     test_zeroshot_ru_pred_linked_entities = get_all_entities_from_entity_linking_file(
-        test_zeroshot_ru_pred_linked_entity_tile,
-        category_type_entities)
+        test_zeroshot_ru_pred_linked_entity_tile)
+
+    test_zeroshot_fr_pred_linked_entity_tile = entity_linking_dir + '/test-fr-zeroshotpred.BM25.top10.pk'
+    test_zeroshot_fr_pred_linked_entities = get_all_entities_from_entity_linking_file(
+        test_zeroshot_fr_pred_linked_entity_tile)
 
     dbfile_output_1hop = './data/core_chain/1hop_closure.ttl'
     dbfile_output_2hop = './data/core_chain/2hop_closure.ttl'
@@ -523,28 +526,15 @@ if __name__ == '__main__':
                 entities = test_zeroshot_ru_pred_linked_entities[id].keys()
                 topic_entities.update(entities)
 
+        for id in test_zeroshot_fr_pred_linked_entities:
+            if id in test_core_chains:
+                entities = test_zeroshot_fr_pred_linked_entities[id].keys()
+                topic_entities.update(entities)
+
         dbfiles = [(dbfile_core_dir + f) for f in listdir(dbfile_core_dir) if
                    isfile(join(dbfile_core_dir, f)) and f.endswith('.ttl')]
 
-        topic_onehop_triples, topic_onehop_lines = graph.slice_1hop(topic_entities, dbfiles, category_type_entities)
-        with open(dbfile_output_1hop, encoding='utf-8', mode='w') as fout:
-            pbar = tqdm(topic_onehop_lines)
-            for l in pbar:
-                fout.write(l)
-
-        print('total %d one hop lines' % len(topic_onehop_lines))
-
-        onehop_entities = set()
-        for triple in topic_onehop_triples:
-            subj = triple[0]
-            obj = triple[2]
-            if subj.startswith('<') and subj.endswith('>'):
-                onehop_entities.add(subj)
-            if obj.startswith('<') and obj.endswith('>'):
-                onehop_entities.add(obj)
-        print('total %d one hop entites' % len(onehop_entities))
-
-        twohop_triples, twohop_lines = graph.slice_1hop(onehop_entities, dbfiles, category_type_entities)
+        twohop_lines = graph.slice_2hop(topic_entities, dbfiles, category_type_entities)
 
         with open(dbfile_output_2hop, encoding='utf-8', mode='w') as fout:
             pbar = tqdm(twohop_lines)
@@ -555,7 +545,7 @@ if __name__ == '__main__':
 
 
     graph = DBGraph()
-    load_from_file = False
+    load_from_file = True
     if load_from_file:
         dbfiles = [dbfile_output_2hop]
         category_type_dict_file = dbfile_core_dir + 'category_type/category_type_label_map.json'
@@ -592,4 +582,9 @@ if __name__ == '__main__':
     generate_core_chain_candidate_stats(test_core_chains, test_zeroshot_de_pred_linked_entities, graph,
                                         category_type_entities,
                                         test_zeroshot_de_pred_output_file)
+
+    test_zeroshot_fr_pred_output_file = './data/core_chain/candidates/test_zeroshot_pred_fr.jsonl'
+    generate_core_chain_candidate_stats(test_core_chains, test_zeroshot_fr_pred_linked_entities, graph,
+                                        category_type_entities,
+                                        test_zeroshot_fr_pred_output_file)
 

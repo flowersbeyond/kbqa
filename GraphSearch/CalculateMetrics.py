@@ -41,7 +41,7 @@ def compute_metrics(data_file, pred_file, ranking_result):
             end_index = min(len(items), 20)
             fout.write(json.dumps({'id':id, 'items':items[0:end_index]}))
 
-    thres_configs = ['top10', 'top20', 'top50', 'top100','top1000','top2000','thres_10','thres_30','thres_60', 'thres_80']
+    thres_configs = ['top1', 'top10', 'top20', 'top50', 'top100','top1000','top2000','thres_10','thres_30','thres_60', 'thres_80']
     stat_table = {}
     for config in thres_configs:
         stat_table[config] = {'rec':0.0, 'qrec':0.0, 'prec':0.0, 'f1':0.0, 'two_hop': 0}
@@ -78,6 +78,11 @@ def compute_metrics(data_file, pred_file, ranking_result):
                 total_gold_count += 1
                 if item['chain_str'].find(' , ') >= 0:
                     is_two_hop = True
+
+                if i <1:
+                    stat_table_item['top1']['rec'] += 1
+                    stat_table_item['top1']['prec'] += 1
+                    stat_table_item['top1']['two_hop'] += 1 if is_two_hop else 0
 
                 if i < 10:
                     stat_table_item['top10']['rec'] += 1
@@ -134,7 +139,7 @@ def compute_metrics(data_file, pred_file, ranking_result):
                     stat_table_item[config]['rec'] /= total_gold_count
                 else:
                     stat_table_item[config]['rec'] = 0
-            prec_base = {'top10':10, 'top20':20, 'top50':50, 'top100':100, 'top1000':1000,'top2000':2000,
+            prec_base = {'top1':1, 'top10':10, 'top20':20, 'top50':50, 'top100':100, 'top1000':1000,'top2000':2000,
                          'thres_80':thres_80_count, 'thres_60':thres_60_count, 'thres_30':thres_30_count, 'thres_10': thres_10_count}
             for config in thres_configs:
                 if prec_base[config] != 0:
@@ -250,7 +255,7 @@ if __name__ == '__main__':
             fout.write(data_line_str)
 
 
-    thres_configs = ['top10', 'top20', 'top50', 'top100', 'top1000','top2000', 'thres_80', 'thres_60','thres_30','thres_10']
+    thres_configs = ['top1', 'top10', 'top20', 'top50', 'top100', 'top1000','top2000', 'thres_80', 'thres_60','thres_30','thres_10']
     for config in configs:
         dir = './data/core_chain/trainingdata/' + config + '/'
         full_stat_table = {}

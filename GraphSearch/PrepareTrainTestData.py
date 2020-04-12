@@ -217,7 +217,7 @@ if __name__ == '__main__':
     #sample_rates = [0.1, 0.2]
 
     configs = ['zeroshot_pred']
-    sample_rates = [0.1]
+    sample_rates = [0.2]
 
     for sample_rate in sample_rates:
         label_dir = training_data_dir + str(int(sample_rate * 100))+ 'label/'

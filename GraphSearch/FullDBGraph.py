@@ -1,4 +1,4 @@
-from utils.DBPedia_Utils import parse_dbpedia_line_with_obj_type
+from utils.DBPedia_Utils import parse_dbpedia_line_with_obj_type, parse_dbpedia_line
 from tqdm import tqdm
 import json
 class DBGraph:
@@ -136,8 +136,23 @@ class DBGraph:
             return {}
         return self.obj_index[entity]
 
-    def slice_1hop(self, entities, dbfiles, category_type_entities):
-        sliced_tuples = set()
+    def slice_2hop(self, entities, dbfiles, category_type_entities):
+        onehop_sliced_entities = set()
+        for f in dbfiles:
+            with open(f, encoding='utf-8') as fin:
+                pbar = tqdm(fin)
+                for l in pbar:
+                    if l.startswith('#'):
+                        continue
+                    subj, pred, obj = parse_dbpedia_line(l)
+
+                    if subj in entities:
+                        if obj.startswith('<') and obj.endswith('>'):
+                            onehop_sliced_entities.add(obj)
+                    if obj in entities:
+                        if subj.startswith('<') and subj.endswith('>'):
+                            onehop_sliced_entities.add(subj)
+
         sliced_lines = set()
         for f in dbfiles:
             with open(f, encoding='utf-8') as fin:
@@ -145,17 +160,17 @@ class DBGraph:
                 for l in pbar:
                     if l.startswith('#'):
                         continue
-                    subj, pred, obj = parse_dbpedia_line_with_obj_type(l)
-                    if subj in category_type_entities or obj in category_type_entities:
-                        continue
+                    subj, pred, obj = parse_dbpedia_line(l)
+
                     if subj in entities or obj in entities:
-                        sliced_tuples.add((subj, pred, obj))
+                        sliced_lines.add(l)
+                    elif subj in onehop_sliced_entities or obj in onehop_sliced_entities:
                         sliced_lines.add(l)
 
-        return sliced_tuples, sliced_lines
+        return sliced_lines
 
     def debug_category_type_parsing(self, output_result_file):
-        with open(output_result_file, encoding='utf-8',mode='w')as fout:
+        with open(output_result_file, encoding='utf-8',mode='w') as fout:
             for obj in self.obj_value_type_index:
                 type = self.obj_value_type_index[obj][1]
                 if type == '':
